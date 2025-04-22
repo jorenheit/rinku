@@ -19,7 +19,7 @@ Follow these steps to get Rinku up and running on your machine:
 
 2. **Install headers system‑wide**
 
-   By default the headers will be installed under `/usr/local/include/rinku`. You can override the installation prefix:
+   By default the headers will be installed under `/usr/local/include/rinku`:
 
    ```sh
    # Install to the default prefix (/usr/local)
@@ -61,7 +61,7 @@ Once installed, you can add Rinku to your own projects simply by including the h
 A typical Rinku-based simulation involves these steps:
 
 1. **Define module types** with their input and output signals (using `INPUT`, `OUTPUT`, etc.).
-2. **Instantiate** module objects in your C++ code and **construct** a `Rinku::System` with them.
+2. **Add modules** to a `Rinku::System`.
 3. **Connect** inputs to outputs (or constants) across modules to form your signal topology.
 4. **Initialize** the system by calling `system.init()` to lock the configuration and reset internal state.
 5. **Run** the simulation cycle-by-cycle via `system.run()`, optionally handling halts and resumes.
@@ -308,7 +308,7 @@ In the example below, it is assumed that these connections are made inside a mem
   ```cpp
   // Using dedicated System members 
   connectHalt<AND_OUT>(andGate);  // halt when the And-gate goes high
-  connectErr<AND_OUT>(andGate);   // error when the And-gate goes high
+  connectError<AND_OUT>(andGate); // error when the And-gate goes high
   connectExit<AND_OUT>(andGate);  // exit when the And-gate goes high
   connectExitCode<REG_OUT>(regA); // return value from regA when done
   

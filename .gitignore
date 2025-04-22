@@ -1,0 +1,6 @@
+# generated files and example executables
+*.o
+
+# temporaries
+*~
+*#

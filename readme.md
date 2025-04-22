@@ -351,4 +351,18 @@ When the system is fully setup, it can be initialized and run using the `System:
 	int ret = sys.run();
 	std::cout << "System finished with exit code " << ret << '\n';
   }
-  ```
+```
+### Other `System` Functions
+The table below shows the full interface for the `System` module.
+
+| Method                                       | Description                                                                                |
+|----------------------------------------------|--------------------------------------------------------------------------------------------|
+| `ModuleType& addModule<ModuleType>(args...)` | Add a module to the system.                                                                |
+| `void connectHalt<OutputSignal>(module)`     | Connect the halt signal.                                                                   |
+| `void connectError<OutputSignal>(module)`    | Connect the error signal.                                                                  |
+| `void connectExit<OutputSignal>(module)`     | Connect the exit signal.                                                                   |
+| `void connectExitCode<OutputSignal>(module)` | Connect the exit-code signal.                                                              |
+| `void init()`                                | Initialize the system.                                                                     |
+| `signal_t run(resumeOnHalt = false)`         | Run the system continuously. If `resumeOnHalt` is set to true, the halt-signal is ignored. |
+| `void step(resumeOnHalt = false)`            | Process one full clock-cycle (rising -> falling).                                          |
+

@@ -63,43 +63,56 @@ class ControlUnit: MODULE(ControlUnitInputs, ControlUnitOutputs)
   size_t currentSignals = 0;
   
 public:
-  template <typename ... Rest>
-  ControlUnit(std::string const &first, Rest ... rest) {
-    static constexpr size_t N_FILES = (1 + sizeof...(Rest));
-    
-    // Copy file contents into seperate buffers
-    std::string const files[] = {first, rest ...};
-    std::vector<unsigned char> buffers[N_FILES];
-    
-    for (size_t idx = 0; idx != N_FILES; ++idx) {
-      std::ifstream file(files[idx]);
-      assert(file && "Could not open file");
-
-      std::copy(std::istreambuf_iterator<char>(file),
-		std::istreambuf_iterator<char>{},
-		std::back_inserter(buffers[idx]));
-    }
-
-    // Check if all buffers are the same size
-    for (size_t idx = 0; idx != N_FILES; ++idx) {
-      for (size_t jdx = idx + 1; jdx != N_FILES; ++jdx) {
-	assert(buffers[idx].size() == buffers[jdx].size() &&
-	       "files are not all of the same size");
-      }
-    }
-
+  ControlUnit() {
     // Flatten buffers into a single microcode image
-    size_t fileSize = buffers[0].size();
-    microcodeRom.resize(fileSize);
-    for (size_t idx = 0; idx != fileSize; ++idx) {
+    microcodeRom.resize(Mugen::IMAGE_SIZE);
+    for (size_t idx = 0; idx != Mugen::IMAGE_SIZE; ++idx) {
       size_t value = 0;
-      for (size_t jdx = 0; jdx != N_FILES; ++jdx) {
-	size_t part = buffers[jdx][idx];
+      for (size_t jdx = 0; jdx != Mugen::N_IMAGES; ++jdx) {
+	size_t part = Mugen::images[jdx][idx];
 	value |= (part << (8 * jdx));
       }
       microcodeRom[idx] = value;
     }
   }
+  
+  // template <typename ... Rest>
+  // ControlUnit(std::string const &first, Rest ... rest) {
+  //   static constexpr size_t N_FILES = (1 + sizeof...(Rest));
+    
+  //   // Copy file contents into seperate buffers
+  //   std::string const files[] = {first, rest ...};
+  //   std::vector<unsigned char> buffers[N_FILES];
+    
+  //   for (size_t idx = 0; idx != N_FILES; ++idx) {
+  //     std::ifstream file(files[idx]);
+  //     assert(file && "Could not open file");
+
+  //     std::copy(std::istreambuf_iterator<char>(file),
+  // 		std::istreambuf_iterator<char>{},
+  // 		std::back_inserter(buffers[idx]));
+  //   }
+
+  //   // Check if all buffers are the same size
+  //   for (size_t idx = 0; idx != N_FILES; ++idx) {
+  //     for (size_t jdx = idx + 1; jdx != N_FILES; ++jdx) {
+  // 	assert(buffers[idx].size() == buffers[jdx].size() &&
+  // 	       "files are not all of the same size");
+  //     }
+  //   }
+
+  //   // Flatten buffers into a single microcode image
+  //   size_t fileSize = buffers[0].size();
+  //   microcodeRom.resize(fileSize);
+  //   for (size_t idx = 0; idx != fileSize; ++idx) {
+  //     size_t value = 0;
+  //     for (size_t jdx = 0; jdx != N_FILES; ++jdx) {
+  // 	size_t part = buffers[jdx][idx];
+  // 	value |= (part << (8 * jdx));
+  //     }
+  //     microcodeRom[idx] = value;
+  //   }
+  // }
 
   ON_CLOCK_RISING() {
     signal_t cycle = GET_INPUT(CU_CC_IN);

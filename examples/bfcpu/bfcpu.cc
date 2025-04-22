@@ -1,6 +1,9 @@
 #include <fstream>
 #include "bfcpu.h"
 
+// Include Mugen-generated microcode 
+#include "microcode/microcode.h"
+
 #include "../../rinku/util/splitter.h"
 #include "../../rinku/util/joiner.h"
 #include "../../rinku/util/bus.h"
@@ -32,9 +35,8 @@ BFComputer::BFComputer(std::string const &filename) {
   auto& ipReg	   = System::addModule<CountingRegister<16>>();
   auto& rd	   = System::addModule<RegisterDriver>();
   auto& ram	   = System::addModule<RAM<8*1024>>();
-  auto& cu	   = System::addModule<ControlUnit>("microcode/bfcpu_emu.bin.0",
-						    "microcode/bfcpu_emu.bin.1",
-						    "microcode/bfcpu_emu.bin.2");
+  auto& cu	   = System::addModule<ControlUnit>();
+
   auto& prog	   = System::addModule<Program>(filename);
   auto& scr	   = System::addModule<Screen>();
   auto& faJoin	   = System::addModule<Joiner>();

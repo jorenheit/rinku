@@ -269,8 +269,8 @@ namespace Rinku {
       }
 
       void updateDependencies(size_t inputIndex) {
-	static std::unordered_map<size_t, std::unordered_set<ModuleBase*>> updating;
-	if (!updating[inputIndex].insert(this).second) return;
+	static std::unordered_map<ModuleBase*, std::unordered_set<size_t>> updating;
+	if (!updating[this].insert(inputIndex).second) return;
 
 	for (ModuleBase *dep: dependencies[inputIndex]) {
 	  dep->allowSetOutput(true);
@@ -278,7 +278,7 @@ namespace Rinku {
 	  dep->allowSetOutput(false);
 	}
 
-	updating[inputIndex].erase(this);
+	updating[this].erase(inputIndex);
       }
       
       void lock() {
@@ -413,8 +413,8 @@ namespace Rinku {
 			       dbg.file, ":", dbg.line, ": Signal \"", dbg.inputSignal, "\" of module \"",
 			       dbg.inputObject, "\" is already connected to constant \"", Value ,"\".");
       Impl::runtime_warning_if(!dbg && signalAlreadyConnected,
-				 "Signal \"", typeid(InputSignal).name(), "\" is already connected to constant \"",
-				 Value, "\".");
+			       "Signal \"", typeid(InputSignal).name(), "\" is already connected to constant \"",
+			       Value, "\".");
       
       inputState[inputIndex].insert(ptr);
       activeLow[inputIndex][ptr] = false;

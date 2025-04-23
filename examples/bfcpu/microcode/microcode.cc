@@ -4,7 +4,7 @@
   See https://github.com/jorenheit/mugen.
 */
 
-#include "microcode/microcode.h"
+#include "microcode.h"
 #ifdef __cplusplus
 namespace Mugen {
 #endif

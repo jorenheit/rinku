@@ -50,11 +50,14 @@ namespace Rinku {
 		      JOINER_IN_60, JOINER_IN_61, JOINER_IN_62, JOINER_IN_63
 		      );
 
+    template <size_t N>
     class Joiner: RINKU_MODULE(JoinerInputs, JoinerOutputs) {
+      static_assert(N <= Inputs::N, "Number of joiner inputs (N) is larger than 64.");
+      
     public:
       virtual void update() override {
 	size_t result = 0;
-	for (size_t idx = 0; idx != Inputs::N; ++idx) {
+	for (size_t idx = 0; idx != N; ++idx) {
 	  result |= (getInput(idx, 1) << idx);
 	}
     

@@ -39,9 +39,9 @@ BFComputer::BFComputer(std::string const &filename) {
 
   auto& prog	   = System::addModule<Program>(filename);
   auto& scr	   = System::addModule<Screen>();
-  auto& faJoin	   = System::addModule<Joiner>();
-  auto& fbJoin	   = System::addModule<Joiner>();
-  auto& faSplit	   = System::addModule<Splitter>(); 
+  auto& faJoin	   = System::addModule<Joiner<4>>();
+  auto& fbJoin	   = System::addModule<Joiner<4>>();
+  auto& faSplit	   = System::addModule<Splitter<4>>(); 
 
   // Connect databus inputs
   CONNECT_MOD(dataBus, BUS_DATA_IN, ram, RAM_DATA_OUT);

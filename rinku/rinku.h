@@ -386,8 +386,7 @@ namespace Rinku {
       Impl::runtime_error_if(!dbg && locked(),
 			     "Cannot connect signal \"", typeid(InputSignal).name(),
 			     "\" after System::init().");
-      
-    
+
       signal_t const *ptr = &(*(constants.insert(Value).first));
       constexpr size_t inputIndex = index_of<InputSignal>;
       bool const signalAlreadyConnected = inputState[inputIndex].contains(ptr);
@@ -470,26 +469,16 @@ namespace Rinku {
     }
 
   private:
-    virtual bool updateAndCheck() override final {
+    virtual bool updateAndCheck() override {
       signal_t oldOutputState[Outputs::N];
       for (size_t idx = 0; idx != Outputs::N; ++idx) {
 	oldOutputState[idx] = getOutput(idx);
-      }
-
-      signal_t oldInputState[Inputs::N];
-      for (size_t idx = 0; idx != Inputs::N; ++idx) {
-	oldInputState[idx] = getInput(idx);
       }
 
       this->update();
 
       for (size_t idx = 0; idx != Outputs::N; ++idx) {
 	if (getOutput(idx) != oldOutputState[idx])
-	  return false;
-      }
-
-      for (size_t idx = 0; idx != Inputs::N; ++idx) {
-	if (getInput(idx) != oldInputState[idx])
 	  return false;
       }
 

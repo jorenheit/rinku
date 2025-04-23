@@ -78,7 +78,7 @@ Because Rinku is a template-heavy library which might scare some less experience
   
   // RINKU_INPUT() is now available as INPUT()
   ```
-Furthermore, all types defined by Rinku are in the `Rinku` namespace. Simply use a `using namespace Rinku` directive to make them available to the namespace you're working from.
+Furthermore, all types defined by Rinku are in the `Rinku` namespace. Simply use a `using namespace Rinku` directive to make them available to the namespace you're working from. The examples in this guide will assume that the macro has been defined and the Rinku namespace is imported.
 
 ## Creating a Module
 To create a new module to be part of a system we take the following steps:
@@ -88,14 +88,15 @@ To create a new module to be part of a system we take the following steps:
 
 ### Step 1: Define Signals
 
-Rinku represents each signal as a strongly-typed struct, carrying a fixed bit-**width**. Macro's have been provided to simplify the declarations of new signals. Each of the macro's is prefixed by `RINKU_` unless the preprocessor constant `RINKU_REMOVE_MACRO_PREFIX` has been defined prior to including `rinku.h`.
+Rinku represents each signal as a strongly-typed struct, carrying a fixed bit-width. Macro's have been provided to simplify the declarations of new signals. 
 
   ```cpp
   INPUT(MyInput, 8); // MyInput is now available as an 8-bit input-signal
   OUTPUT(MyOutput, 16); // MyOutput is now available as a 16-bit output-signal
   ```
+
 ### Step 2: Define Module-Class
-To define a new module type as a class, the input and output signals have to be combined in a `SIGNAL_LIST` so they can be passed to the `Rinku::Module<>` baseclass. The `SIGNAL_LIST` macro takes the list-name as its first argument, followed by all the signals (previously declared using `INPUT` and `OUTPUT`) that need to be part of this list. A signal-list should contain only 1 type of signal, either inputs or outputs but not both.
+To define a new module type as a class, the input and output signals have to be combined in a `SIGNAL_LIST` so they can be passed to the `Rinku::Module<>` base-class. The `SIGNAL_LIST` macro takes the list-name as its first argument, followed by all the signals (previously declared using `INPUT` and `OUTPUT`) that need to be part of this list. A signal-list should contain only 1 type of signal, either inputs or outputs but not both.
 
   ```cpp
   SIGNAL_LIST(ModuleInputSignals, In1, In2, In3);
@@ -108,7 +109,14 @@ After defining the lists, we can declare our new module, where the `MODULE` macr
 	  // ...
   };
   ```
+If you prefer to use normal C++ inheritance syntax, do not forget to derive publicly from the `Rinku::Module`:
 
+  ```cpp
+  class MyModule: public Rinku::Module<ModuleInputSignals, ModuleOutputSignals> 
+  {
+      // ...
+  };
+  ```
 ### Step 3: Module Behavior
 To define the module behavior, virtual functions from the Module baseclass may be overridden. Macro's have been provided to handle the C++ syntax for you, but of course you are free to use regular C++ as well (optionally using the `virtual` and `override` keywords):
 
@@ -177,9 +185,7 @@ The output-signals are stored internally as 64-bit integers (`uint64_t`). The ty
 	}
 	
 	UPDATE() {
-	  if (GET_INPUT(REG_EN)) {
-	    SET_OUTPUT(REG_DATA_OUT, value);
-	  }
+	  SET_OUTPUT(REG_DATA_OUT, GET_INPUT(REG_EN) ? value : 0);
 	}
 	
 	RESET() {

@@ -59,22 +59,14 @@ SIGNAL_LIST(ControlUnitOutputs,
 
 class ControlUnit: MODULE(ControlUnitInputs, ControlUnitOutputs)
 {
-  std::vector<size_t> microcodeRom;
+  std::vector<size_t> const microcodeRom;
   signal_t currentSignals = 0;
   bool needsUpdate = true;
   
 public:
-  ControlUnit() {
-    microcodeRom.resize(Mugen::IMAGE_SIZE);
-    for (size_t idx = 0; idx != Mugen::IMAGE_SIZE; ++idx) {
-      size_t value = 0;
-      for (size_t jdx = 0; jdx != Mugen::N_IMAGES; ++jdx) {
-	size_t part = Mugen::images[jdx][idx];
-	value |= (part << (8 * jdx));
-      }
-      microcodeRom[idx] = value;
-    }
-  }
+  ControlUnit():
+    microcodeRom(loadImages())
+  {}
 
   ON_CLOCK_RISING() {
     signal_t cycle = GET_INPUT(CU_CC_IN);
@@ -101,5 +93,21 @@ public:
   RESET() {
     currentSignals = 0;
     needsUpdate = true;
+  }
+
+private:
+
+  static std::vector<size_t> loadImages(){
+    std::vector<size_t> result;
+    result.resize(Mugen::IMAGE_SIZE);
+    for (size_t idx = 0; idx != Mugen::IMAGE_SIZE; ++idx) {
+      size_t value = 0;
+      for (size_t jdx = 0; jdx != Mugen::N_IMAGES; ++jdx) {
+	size_t part = Mugen::images[jdx][idx];
+	value |= (part << (8 * jdx));
+      }
+      result[idx] = value;
+    }
+    return result;
   }
 };

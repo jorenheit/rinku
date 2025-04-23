@@ -190,18 +190,21 @@ The output-signals are stored internally as 64-bit integers (`uint64_t`). The ty
 ### Predefined Modules
 A few convenient modules that are ready for use can be included from the `rinku/logic` and `rinku/util` folders. Below is an overview of these modules and their signals.
 
-| Module     | Namespace      | Inputs (Bits)                             | Outputs (Bits)                              | Header                    |
-|------------|----------------|-------------------------------------------|---------------------------------------------|---------------------------|
-| `And`      | `Rinku::Logic` | `AND_IN_A (1)`, `AND_IN_B (1)`            | `AND_OUT (1)`                               | `<rinku/logic/logic.h>`   |
-| `Or`       | `Rinku::Logic` | `OR_IN_A (1)`, `OR_IN_B (1)`              | `OR_OUT (1)`                                | `<rinku/logic/logic.h>`   |
-| `Xor`      | `Rinku::Logic` | `XOR_IN_A (1)`, `AND_IN_B (1)`            | `XOR_OUT (1)`                               | `<rinku/logic/logic.h>`   |
-| `Switch`   | `Rinku::Util`  |                                           | `SWITCH_OUT (1)`                            | `<rinku/util/switch.h>`   |
-| `Bus`      | `Rinku::Util`  | `BUS_DATA_IN (64)`                        | `BUS_DATA_OUT (64)`                         | `<rinku/util/bus.h>`      |
-| `Splitter` | `Rinku::Util`  | `SPLITTER_IN (64)`                        | `SPLITTER_OUT_X (1)`</br>(`X` from 0 to 63) | `<rinku/util/splitter.h>` |
-| `Joiner`   | `Rinku::Util`  | `JOINER_IN_X (1)` <br/>(`X` from 0 to 63) | `JOINER_OUT (64)`                           | `<rinku/util/joiner.h>`   |
+| Module        | Namespace      | Inputs (Bits)                             | Outputs (Bits)                              | Header                    |
+|---------------|----------------|-------------------------------------------|---------------------------------------------|---------------------------|
+| `And`         | `Rinku::Logic` | `AND_IN_A (1)`, `AND_IN_B (1)`            | `AND_OUT (1)`                               | `<rinku/logic/logic.h>`   |
+| `Or`          | `Rinku::Logic` | `OR_IN_A (1)`, `OR_IN_B (1)`              | `OR_OUT (1)`                                | `<rinku/logic/logic.h>`   |
+| `Xor`         | `Rinku::Logic` | `XOR_IN_A (1)`, `AND_IN_B (1)`            | `XOR_OUT (1)`                               | `<rinku/logic/logic.h>`   |
+| `Switch`      | `Rinku::Util`  |                                           | `SWITCH_OUT (1)`                            | `<rinku/util/switch.h>`   |
+| `Bus`         | `Rinku::Util`  | `BUS_DATA_IN (64)`                        | `BUS_DATA_OUT (64)`                         | `<rinku/util/bus.h>`      |
+| `Splitter<N>` | `Rinku::Util`  | `SPLITTER_IN (64)`                        | `SPLITTER_OUT_X (1)`</br>(`X` from 0 to 63) | `<rinku/util/splitter.h>` |
+| `Joiner<N>`   | `Rinku::Util`  | `JOINER_IN_X (1)` <br/>(`X` from 0 to 63) | `JOINER_OUT (64)`                           | `<rinku/util/joiner.h>`   |
 
 #### Switch Members
 The `Switch` module does not have inputs that it acts upon. Instead, it can be operated using the functions `Switch::set(bool)` or `Switch::toggle()`.
+
+#### `Splitter<N>` and `Joiner<N>`
+Even though all splitters and joiners have 64 inputs/outputs available, the template parameter `N` should signify the number of inputs that are connected. When processing inputs and outputs, these classes will only update the first `N` inputs and outputs to optimize for speed.
 
 
 ## Building the System

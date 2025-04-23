@@ -59,7 +59,7 @@ namespace Rinku {
       bool initialized = false;
       
     public:
-      virtual void update() override {
+      virtual void update(GuaranteeToken) override {
 	signal_t input = getInput<SPLITTER_IN>();
 	if (initialized && input == currentOutput)
 	  return;

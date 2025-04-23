@@ -16,7 +16,7 @@ namespace Rinku {
 	    
     class Bus: RINKU_MODULE(BusInputs, BusOutputs) {
     public:
-      virtual void update() override {
+      virtual void update(GuaranteeToken) override {
 	size_t const data = getInput<BUS_DATA_IN>();
 	setOutput<BUS_DATA_OUT>(data);
       }

@@ -16,7 +16,8 @@
 #define RINKU_MODULE(...) public Rinku::Module< __VA_ARGS__ >
 #define RINKU_ON_CLOCK_RISING() virtual void clockRising() override
 #define RINKU_ON_CLOCK_FALLING() virtual void clockFalling() override
-#define RINKU_UPDATE() virtual void update() override
+#define RINKU_UPDATE() virtual void update([[maybe_unused]] GuaranteeToken guarantee_no_get_input) override
+#define RINKU_GUARANTEE_NO_GET_INPUT() guarantee_no_get_input.set();
 #define RINKU_RESET() virtual void reset() override
 #define RINKU_NOT(SIGNAL) Rinku::Not<SIGNAL>
 
@@ -158,6 +159,7 @@
 #define SET_OUTPUT_INDEX RINKU_SET_OUTPUT_INDEX
 #define GET_INPUT RINKU_GET_INPUT
 #define GET_INPUT_INDEX RINKU_GET_INPUT_INDEX
+#define GUARANTEE_NO_GET_INPUT RINKU_GUARANTEE_NO_GET_INPUT
 #endif
 
 namespace Rinku {
@@ -257,6 +259,21 @@ namespace Rinku {
       bool _setOutputAllowed = true;
       std::vector<bool> _isUpdating;
       std::vector<std::unordered_set<ModuleBase*>> _dependencies;
+      bool _guaranteed = false;
+
+    public:
+      class GuaranteeToken {
+	friend class ModuleBase;
+	bool *value;
+	GuaranteeToken(bool *val):
+	  value(val)
+	{}
+      public:
+	void set() {
+	  assert(value && "value can't be null");
+	  *value = true;
+	}
+      };
       
     public:
       ModuleBase(size_t nInputs):
@@ -267,7 +284,7 @@ namespace Rinku {
       virtual ~ModuleBase() = default;
       virtual void clockRising() {}
       virtual void clockFalling() {}
-      virtual void update() {}
+      virtual void update(GuaranteeToken) {}
       virtual void reset() {}
 
       void addDependency(size_t inputIndex, ModuleBase &dep) {
@@ -279,8 +296,9 @@ namespace Rinku {
 	_isUpdating[inputIndex] = true;
 	
 	for (ModuleBase *dep: _dependencies[inputIndex]) {
+	  if (dep->_guaranteed) continue;
 	  dep->allowSetOutput(true);
-	  dep->update();
+	  dep->update(GuaranteeToken{&dep->_guaranteed});
 	  dep->allowSetOutput(false);
 	}
 
@@ -301,6 +319,10 @@ namespace Rinku {
 
       bool setOutputAllowed() const {
 	return _setOutputAllowed;
+      }
+
+      void resetGuaranteed() {
+	_guaranteed = false;
       }
     };
 
@@ -513,11 +535,19 @@ namespace Rinku {
     public:
       void rise() {
 	for (auto const &m: attached) {
+	  m->resetGuaranteed();
+	}
+	
+	for (auto const &m: attached) {
 	  m->clockRising();
 	}
       }
       
       void fall() {
+	for (auto const &m: attached) {
+	  m->resetGuaranteed();
+	}
+	
 	for (auto const &m: attached) {
 	  m->clockFalling();
 	}
@@ -572,14 +602,17 @@ namespace Rinku {
       for (auto const &m: modules) {
 	m->lock();
 	m->reset();
+	m->resetGuaranteed();
       }
       initialized = true;
 
     }
 
     virtual void reset() override {
-      for (auto const &m: modules)
+      for (auto const &m: modules) {
 	m->reset();
+	m->resetGuaranteed();
+      }
     }
     
     signal_t run(bool resume = false) {

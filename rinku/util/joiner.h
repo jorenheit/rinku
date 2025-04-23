@@ -55,7 +55,7 @@ namespace Rinku {
       static_assert(N <= Inputs::N, "Number of joiner inputs (N) is larger than 64.");
       
     public:
-      virtual void update() override {
+      virtual void update(GuaranteeToken) override {
 	size_t result = 0;
 	for (size_t idx = 0; idx != N; ++idx) {
 	  result |= (getInput(idx, 1) << idx);

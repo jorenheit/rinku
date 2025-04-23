@@ -122,8 +122,8 @@ To define the module behavior, virtual functions from the Module baseclass may b
 
 1. **`void clockRising()`/`ON_CLOCK_RISING()`** and **`void clockFalling()`/`ON_CLOCK_FALLING()`** <br/> 
 These functions are called every time the clock changes state. Because the order in which the modules are clocked is undefined, the implementation of these functions should not affect its outputs, which in turn may affect other modules depending on the order in which the modules are clocked. Datamembers should therefore be used to keep track of its internal state, which are only made available on the output signals when `update()` is called (see below).
-2. **`void update()`** or **`UPDATE()`** <br/>
-This function is called in-between clock state-changes and should handle signal propagation within the module. The system will repeatedly call the update-function on all modules until all module-outputs have settled into a stable state. In general, this is the place where the outputs of the module are set, while the clock-functions above are used to change the internal state without affecting the outputs (which could affect other modules).
+2. **`void update(GuaranteeToken token)`** or **`UPDATE()`** <br/>
+This function is called in-between clock state-changes and should handle signal propagation within the module. The system will repeatedly call the update-function on all modules until all module-outputs have settled into a stable state. In general, this is the place where the outputs of the module are set, while the clock-functions above are used to change the internal state without affecting the outputs (which could affect other modules). The guarantee-token is a token that can be set using `token.set()` to indicate that the update-function is guaranteed to have fully settled the module's output. This is equivalent to stating that the update-function is independent from input from other modules (and therefore `getInput`/`GET_INPUT` are never called in its body). By making this promise, the runtime can significantly cut down on the number of updates it needs to guarantee a fully settled down system. If you're using the `UPDATE()` macro, the guarantee can be set using `GUARANTEE_NO_GET_INPUT()` (preferably at the top of the function).
 3. **`void reset()`** or **`RESET()`** <br/>
 This function is called on initialization or when `System::reset()` is used to reset the entire system. It should make sure that the module resets to some known predefined state.
 
@@ -139,7 +139,38 @@ Inside these functions, inputs and outputs can be read using functionality from 
 The output-signals are stored internally as 64-bit integers (`uint64_t`). The type `Rinku::signal_t` has been provided as a type alias for convenience; this is the return-type for `getInput` and the expected type for `value` when setting outputs.
 
 ### Examples
-#### Example 1: AND Gate
+#### Example 1: Counter
+
+  ```cpp
+  OUTPUT(COUNT_OUT, 8);
+  SIGNAL_LIST(CounterOutput, COUNT_OUT);
+  
+  class Counter: MODULE(CounterOutput) {
+	unsigned char count = 0;
+  public:
+	ON_CLOCK_RISING() {
+	  ++count;
+	}
+  
+	UPDATE() {
+	  GUARANTEE_NO_GET_INPUT();
+	  SET_OUTPUT(COUNT_OUT, count);
+	}
+	
+	RESET() {
+	  count = 0;
+	}
+	
+	/* Regular C++ version of update */
+	virtual void update(GuaranteeToken token) override {
+	  token.set();
+	  setOutput<COUNT_OUT>(count);
+	}
+  };
+  ```
+
+
+#### Example 2: AND Gate
   
   ```cpp
   INPUT(AND_IN_A, 1);
@@ -158,7 +189,7 @@ The output-signals are stored internally as 64-bit integers (`uint64_t`). The ty
 	}
   };
   ```
-#### Example 2: 8-Bit Register
+#### Example 3: 8-Bit Register
 
   ```cpp
   INPUT(REG_DATA_IN, 8);

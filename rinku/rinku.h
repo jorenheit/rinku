@@ -253,25 +253,6 @@ namespace Rinku {
     };
 
     class ModuleBase {
-    protected:
-      class AllowSetOutputInScope {
-	ModuleBase *mod;
-	bool allow;
-	
-      public:
-	explicit AllowSetOutputInScope(ModuleBase *ptr, bool val = true):
-	  mod(ptr),
-	  allow(val)
-	{
-	  mod->allowSetOutput(allow);
-	}
-
-	~AllowSetOutputInScope() {
-	  mod->allowSetOutput(!allow);
-	}
-      };
-
-    private:
       bool _locked = false;
       bool _setOutputAllowed = true;
       std::vector<bool> isUpdating;
@@ -297,8 +278,9 @@ namespace Rinku {
 	isUpdating[inputIndex] = true;
 	
 	for (ModuleBase *dep: dependencies[inputIndex]) {
-	  AllowSetOutputInScope allow(dep);
+	  dep->allowSetOutput(true);
 	  dep->update();
+	  dep->allowSetOutput(false);
 	}
 
 	isUpdating[inputIndex] = false;
@@ -530,14 +512,12 @@ namespace Rinku {
     public:
       void rise() {
 	for (auto const &m: attached) {
-	  AllowSetOutputInScope allow(m.get(), false);
 	  m->clockRising();
 	}
       }
       
       void fall() {
 	for (auto const &m: attached) {
-	  AllowSetOutputInScope allow(m.get(), false);
 	  m->clockFalling();
 	}
       }

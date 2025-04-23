@@ -55,8 +55,8 @@ public:
   }
 
   UPDATE() {
-    SET_OUTPUT(CR_Z, (value == 0));
     SET_OUTPUT(CR_DATA_OUT, GET_INPUT(CR_EN) ? value : 0);
+    SET_OUTPUT(CR_Z, (value == 0));
     SET_OUTPUT(CR_DATA_OUT_ALWAYS, value);
   }
 

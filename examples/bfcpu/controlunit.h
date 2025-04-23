@@ -60,7 +60,8 @@ SIGNAL_LIST(ControlUnitOutputs,
 class ControlUnit: MODULE(ControlUnitInputs, ControlUnitOutputs)
 {
   std::vector<size_t> microcodeRom;
-  size_t currentSignals = 0;
+  signal_t currentSignals = 0;
+  bool needsUpdate = true;
   
 public:
   ControlUnit() {
@@ -85,12 +86,20 @@ public:
       ((cmd   << 3) & 0b00001111000) |
       ((flags << 7) & 0b11110000000);
 
-    currentSignals = microcodeRom[address];
+    signal_t newSignals = microcodeRom[address];
+    needsUpdate = (newSignals != currentSignals);
+    currentSignals = newSignals;
   }
 
   UPDATE() {
+    if (!needsUpdate) return;
     for (size_t idx = 0; idx != Outputs::N; ++idx) {
       SET_OUTPUT_INDEX(idx, (currentSignals >> idx) & 1);
     }
+  }
+
+  RESET() {
+    currentSignals = 0;
+    needsUpdate = true;
   }
 };

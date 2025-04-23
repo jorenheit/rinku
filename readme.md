@@ -52,8 +52,8 @@ Follow these steps to get Rinku up and running on your machine:
    - **BFCPU Emulator**
      ```sh
      cd examples/bfcpu
-     make         # produces the `bfcpu` executable
-     ./bfcpu      # run the emulator
+     make                         # produces the `bfcpu` executable
+     ./bfcpu programs/hello.bin   # run `hello world` on the emulator
      ```
 
 Once installed, you can add Rinku to your own projects simply by including the headers and compiling with C++20.

@@ -7,6 +7,9 @@
 
 Rinku is a lightweight C++ header-only library designed to simplify the creation of cycle-accurate, event-driven computational systems. By defining *signals* and *modules* that communicate via well-defined interfaces, Rinku enables you to compose complex hardware-like architectures entirely in C++, with automatic propagation of signal changes and clock-driven update semantics.
 
+### Motivation
+THe library was developed for aid in prototyping and debugging a custom designed breadboard computer, inspired by Ben Eater's 8-bit computer. The resulting system has been added as one of the examples (bfcpu) and has proven to be a valuable tool in the development of such systems. More information about the bfcpu-project can be found on [Github](https://github.com/jorenheit/bfcpu).
+
 ## Installation
 Follow these steps to get Rinku up and running on your machine:
 

@@ -348,17 +348,13 @@ namespace Rinku {
       static_assert(std::is_base_of_v<Impl::ModuleBase, OtherModule>,
 		    "Other module is not a valid Rinku::Module.");
 
-      if (dbg) {
-	Impl::runtime_error_if(locked(),
-			       dbg.file, ":", dbg.line, ": connect called on module \"", dbg.inputObject, "\" "
-			       "after calling System::init().");
-      }
-      else {
-	Impl::runtime_error_if(locked(),
-			       "Cannot connect signal \"", typeid(InputSignal).name(),
-			       "\" after System::init().");
-      }
+      Impl::runtime_error_if(dbg && locked(),
+			     dbg.file, ":", dbg.line, ": connect called on module \"", dbg.inputObject, "\" "
+			     "after calling System::init().");
       
+      Impl::runtime_error_if(!dbg && locked(),
+			     "Cannot connect signal \"", typeid(InputSignal).name(),
+			     "\" after System::init().");
     
       constexpr size_t inputIndex = index_of<InputSignal>;
       constexpr size_t outputIndex = OtherModule::template index_of<typename OutputSignal::Base>;
@@ -366,17 +362,14 @@ namespace Rinku {
       signal_t *ptr = &other.outputState[outputIndex];
       bool const signalAlreadyConnected = inputState[inputIndex].contains(ptr);
       
-      if (dbg) {
-	Impl::runtime_warning_if(signalAlreadyConnected,
-				 dbg.file, ":", dbg.line, ": Signal \"", dbg.inputSignal, "\" of module \"",
-				 dbg.inputObject, "\" is already connected to output \"", dbg.outputSignal,
-				 "\" of module \"", dbg.outputObject, "\".");
-      }
-      else {
-	Impl::runtime_warning_if(signalAlreadyConnected,
-				 "Signal \"", typeid(OutputSignal).name(), "\" is already connected to \"",
-				 typeid(InputSignal).name(), "\" of module \"", typeid(OtherModule).name(), "\".");
-      }
+      Impl::runtime_warning_if(dbg && signalAlreadyConnected,
+			       dbg.file, ":", dbg.line, ": Signal \"", dbg.inputSignal, "\" of module \"",
+			       dbg.inputObject, "\" is already connected to output \"", dbg.outputSignal,
+			       "\" of module \"", dbg.outputObject, "\".");
+
+      Impl::runtime_warning_if(!dbg && signalAlreadyConnected,
+			       "Signal \"", typeid(OutputSignal).name(), "\" is already connected to \"",
+			       typeid(InputSignal).name(), "\" of module \"", typeid(OtherModule).name(), "\".");
       
       inputState[inputIndex].insert(ptr);
       activeLow[inputIndex][ptr] = OutputSignal::ActiveLow;

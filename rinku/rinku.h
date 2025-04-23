@@ -253,11 +253,35 @@ namespace Rinku {
     };
 
     class ModuleBase {
+    protected:
+      class AllowSetOutputInScope {
+	ModuleBase *mod;
+	bool allow;
+	
+      public:
+	explicit AllowSetOutputInScope(ModuleBase *ptr, bool val = true):
+	  mod(ptr),
+	  allow(val)
+	{
+	  mod->allowSetOutput(allow);
+	}
+
+	~AllowSetOutputInScope() {
+	  mod->allowSetOutput(!allow);
+	}
+      };
+
+    private:
       bool _locked = false;
       bool _setOutputAllowed = true;
+      std::vector<bool> isUpdating;
       std::unordered_map<size_t, std::vector<ModuleBase*>> dependencies;
       
     public:
+      ModuleBase(size_t nInputs):
+	isUpdating(nInputs)
+      {}
+      
       virtual ~ModuleBase() = default;
       virtual void clockRising() {}
       virtual void clockFalling() {}
@@ -269,16 +293,15 @@ namespace Rinku {
       }
 
       void updateDependencies(size_t inputIndex) {
-	static std::unordered_map<ModuleBase*, std::unordered_set<size_t>> updating;
-	if (!updating[this].insert(inputIndex).second) return;
-
+	if (isUpdating[inputIndex]) return;
+	isUpdating[inputIndex] = true;
+	
 	for (ModuleBase *dep: dependencies[inputIndex]) {
-	  dep->allowSetOutput(true);
+	  AllowSetOutputInScope allow(dep);
 	  dep->update();
-	  dep->allowSetOutput(false);
 	}
 
-	updating[this].erase(inputIndex);
+	isUpdating[inputIndex] = false;
       }
       
       void lock() {
@@ -360,6 +383,10 @@ namespace Rinku {
     using ModuleBase::setOutputAllowed;
     
   public:
+    Module():
+      Impl::ModuleBase(Inputs::N)
+    {}
+    
     template <typename InputSignal, typename OutputSignal, typename OtherModule>
     void connect(OtherModule &other, Impl::DebugInfo const &dbg = {}) {
       static_assert(std::is_base_of_v<Impl::ModuleBase, OtherModule>,
@@ -503,17 +530,15 @@ namespace Rinku {
     public:
       void rise() {
 	for (auto const &m: attached) {
-	  m->allowSetOutput(false);
+	  AllowSetOutputInScope allow(m.get(), false);
 	  m->clockRising();
-	  m->allowSetOutput(true); 
 	}
       }
       
       void fall() {
 	for (auto const &m: attached) {
-	  m->allowSetOutput(false);
+	  AllowSetOutputInScope allow(m.get(), false);
 	  m->clockFalling();
-	  m->allowSetOutput(true);
 	}
       }
 

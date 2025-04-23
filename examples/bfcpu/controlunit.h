@@ -61,10 +61,10 @@ class ControlUnit: MODULE(ControlUnitInputs, ControlUnitOutputs)
 {
   std::vector<size_t> microcodeRom;
   size_t currentSignals = 0;
+  bool needsUpdate = true;
   
 public:
   ControlUnit() {
-    // Flatten buffers into a single microcode image
     microcodeRom.resize(Mugen::IMAGE_SIZE);
     for (size_t idx = 0; idx != Mugen::IMAGE_SIZE; ++idx) {
       size_t value = 0;
@@ -87,11 +87,14 @@ public:
       ((flags << 7) & 0b11110000000);
 
     currentSignals = microcodeRom[address];
+    needsUpdate = true;
   }
 
   UPDATE() {
+    if (!needsUpdate) return;
     for (size_t idx = 0; idx != Outputs::N; ++idx) {
       SET_OUTPUT_INDEX(idx, (currentSignals >> idx) & 1);
     }
+    needsUpdate = false;
   }
 };

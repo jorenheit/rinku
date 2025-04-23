@@ -255,7 +255,8 @@ namespace Rinku {
     class ModuleBase {
       bool _locked = false;
       bool _setOutputAllowed = true;
-  
+      std::unordered_map<size_t, std::vector<ModuleBase*>> dependencies;
+      
     public:
       virtual ~ModuleBase() = default;
       virtual bool updateAndCheck() =  0;
@@ -264,6 +265,23 @@ namespace Rinku {
       virtual void update() {}
       virtual void reset() {}
 
+      void addDependency(size_t inputIndex, ModuleBase &dep) {
+	dependencies[inputIndex].push_back(&dep);
+      }
+
+      void updateDependencies(size_t inputIndex) {
+	static std::unordered_map<size_t, std::unordered_set<ModuleBase*>> updating;
+	if (!updating[inputIndex].insert(this).second) return;
+
+	for (ModuleBase *dep: dependencies[inputIndex]) {
+	  dep->allowSetOutput(true);
+	  dep->update();
+	  dep->allowSetOutput(false);
+	}
+
+	updating[inputIndex].erase(this);
+      }
+      
       void lock() {
 	_locked = true;
       }
@@ -370,7 +388,8 @@ namespace Rinku {
       Impl::runtime_warning_if(!dbg && signalAlreadyConnected,
 			       "Signal \"", typeid(OutputSignal).name(), "\" is already connected to \"",
 			       typeid(InputSignal).name(), "\" of module \"", typeid(OtherModule).name(), "\".");
-      
+
+      addDependency(inputIndex, other);
       inputState[inputIndex].insert(ptr);
       activeLow[inputIndex][ptr] = OutputSignal::ActiveLow;
     }
@@ -407,15 +426,15 @@ namespace Rinku {
       static_assert(S::IsOutput,
 		    "Signal passed to setOutput is not an output signal.");
       
-      setOutput(index_of<S>, value, S::Mask);
+      setOutput(index_of<S>, value, S::Mask, dbg);
     }
 
     void setOutput(size_t outputIndex, signal_t value, signal_t mask = -1, Impl::DebugInfo const &dbg = {}) {
       Impl::runtime_error_if(dbg && !setOutputAllowed(),
 		       dbg.file, ":", dbg.line,
-		       ": Outputs should not be modified in the update-function, not the clock-handlers.");
+		       ": Outputs should be modified in the update-function, not the clock-handlers.");
       Impl::runtime_error_if(!dbg && !setOutputAllowed(),
-		       "Outputs should not be modified in the update-function, not the clock-handlers.");
+		       "Outputs should be modified in the update-function, not the clock-handlers.");
       Impl::runtime_error_if(dbg && outputIndex >= Outputs::N,
 		       dbg.file, ":", dbg.line,
 		       ": Output-index (", outputIndex, ") out of bounds (#output-signals = ", Outputs::N ,").");
@@ -452,6 +471,8 @@ namespace Rinku {
     }
 
     signal_t getInput(size_t inputIndex, signal_t mask = -1, Impl::DebugInfo const &dbg = {}) {
+      updateDependencies(inputIndex);
+      
       Impl::runtime_error_if(dbg && inputIndex >= Inputs::N,
 		       dbg.file, ":", dbg.line,
 		       ": Input-index (", inputIndex, ") out of bounds (#input-signals = ", Inputs::N ,").");
@@ -500,13 +521,17 @@ namespace Rinku {
     public:
       void rise() {
 	for (auto const &m: attached) {
+	  m->allowSetOutput(false);
 	  m->clockRising();
+	  m->allowSetOutput(true); 
 	}
       }
       
       void fall() {
 	for (auto const &m: attached) {
+	  m->allowSetOutput(false);
 	  m->clockFalling();
+	  m->allowSetOutput(true);
 	}
       }
 
@@ -569,25 +594,6 @@ namespace Rinku {
 	m->reset();
     }
     
-    virtual void update() override {
-      checkIfInitialized();
-
-      for (auto const &m: modules) {
-	m->allowSetOutput(true);
-      }
-
-      bool settled = false;
-      while (!settled) {
-	settled = true;
-	for (auto const &m: modules) 
-	  if (!m->updateAndCheck()) settled = false;
-      }
-
-      for (auto const &m: modules) {
-	m->allowSetOutput(false);
-      }
-    }
-  
     signal_t run(bool resume = false) {
       checkIfInitialized();
       while (!getInput<SYS_EXIT>()) step(resume);
@@ -607,11 +613,8 @@ namespace Rinku {
 	std::getchar();
       }
 
-      update();
       clk.rise();
-      update();
       clk.fall();
-      update();
     }
   private:
     void checkIfInitialized() {

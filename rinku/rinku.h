@@ -255,12 +255,13 @@ namespace Rinku {
     class ModuleBase {
       bool _locked = false;
       bool _setOutputAllowed = true;
-      std::vector<bool> isUpdating;
-      std::unordered_map<size_t, std::vector<ModuleBase*>> dependencies;
+      std::vector<bool> _isUpdating;
+      std::vector<std::unordered_set<ModuleBase*>> _dependencies;
       
     public:
       ModuleBase(size_t nInputs):
-	isUpdating(nInputs)
+	_isUpdating(nInputs),
+	_dependencies(nInputs)
       {}
       
       virtual ~ModuleBase() = default;
@@ -270,20 +271,20 @@ namespace Rinku {
       virtual void reset() {}
 
       void addDependency(size_t inputIndex, ModuleBase &dep) {
-	dependencies[inputIndex].push_back(&dep);
+	_dependencies[inputIndex].insert(&dep);
       }
 
       void updateDependencies(size_t inputIndex) {
-	if (isUpdating[inputIndex]) return;
-	isUpdating[inputIndex] = true;
+	if (_isUpdating[inputIndex]) return;
+	_isUpdating[inputIndex] = true;
 	
-	for (ModuleBase *dep: dependencies[inputIndex]) {
+	for (ModuleBase *dep: _dependencies[inputIndex]) {
 	  dep->allowSetOutput(true);
 	  dep->update();
 	  dep->allowSetOutput(false);
 	}
 
-	isUpdating[inputIndex] = false;
+	_isUpdating[inputIndex] = false;
       }
       
       void lock() {

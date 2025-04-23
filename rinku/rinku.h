@@ -259,7 +259,6 @@ namespace Rinku {
       
     public:
       virtual ~ModuleBase() = default;
-      virtual bool updateAndCheck() =  0;
       virtual void clockRising() {}
       virtual void clockFalling() {}
       virtual void update() {}
@@ -487,23 +486,6 @@ namespace Rinku {
 	if (ptr) result |= (activeLow[inputIndex][ptr] ? ~(*ptr) : *ptr);
       }
       return result & mask;
-    }
-
-  private:
-    virtual bool updateAndCheck() override {
-      signal_t oldOutputState[Outputs::N];
-      for (size_t idx = 0; idx != Outputs::N; ++idx) {
-	oldOutputState[idx] = getOutput(idx);
-      }
-
-      this->update();
-
-      for (size_t idx = 0; idx != Outputs::N; ++idx) {
-	if (getOutput(idx) != oldOutputState[idx])
-	  return false;
-      }
-
-      return true;
     }
   };
 

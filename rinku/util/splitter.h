@@ -72,12 +72,6 @@ namespace Rinku {
 	currentOutput = input;
       }
 
-      virtual bool updateAndCheck() override {
-	signal_t const previousOutput = currentOutput;
-	update();
-	return previousOutput == currentOutput;
-      }
-
       virtual void reset() override {
 	initialized = false;
       }

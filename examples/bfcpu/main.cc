@@ -9,7 +9,7 @@ int main(int argc, char **argv) {
   }
   
   BFComputer cpu(argv[1]);
-  Rinku::signal_t err = cpu.run();
+  Rinku::signal_t err = cpu.run(true);
   std::cout << "DONE! Exit code: " << err << '\n';
 }
 

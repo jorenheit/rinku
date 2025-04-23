@@ -299,6 +299,8 @@ Sometimes it makes sense to connect inputs to inverted outputs. You could design
   CONNECT(regA, REG_EN, andGate, NOT(AND_OUT));
   ```
 
+#### Multiple Outputs to a Single Input
+Rinku allows connecting multiple outputs to a single input. This is necessary for instance when creating a module that acts like a bus. When an input connects to multiple outputs, its resulting value is the bitwise OR of each of the outputs of the connected to it.
 
 ### 4. Special System Connections
 The `System` is itself a module and has 4 input-signals (no outputs): `SYS_HLT`, `SYS_ERR`, `SYS_EXIT` and `SYS_EXIT_CODE`. These input signals can be connected to output signals in order to make the system halt, exit with an error or exit gracefully when issued. The system's `run()` function will return the value present at the `SYS_EXIT_CODE` input (8 bits). Special connect-functions are available in the System interface to make these connections, though they can also be made like any other connection (see above).

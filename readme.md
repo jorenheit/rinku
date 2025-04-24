@@ -10,6 +10,9 @@ Rinku is a lightweight C++ header-only library designed to simplify the creation
 ### Motivation
 The library was developed for aid in prototyping and debugging a custom designed breadboard computer, inspired by Ben Eater's 8-bit computer. The resulting system has been added as one of the examples (bfcpu) and has proven this library to be a valuable tool in the development of such systems (at least for me). More information about the bfcpu-project can be found on [Github](https://github.com/jorenheit/bfcpu). To incorporate the microcode for the BFCPU into the simulated system, [Mugen](https://github.com/jorenheit/mugen) was used to generate the `microcode.h` and `microcode.cc` source files.
 
+### :warning: Warning
+Rinku models all signals and gates as ideal, zero-delay logic. It does not simulate real-world propagation delays, so any circuit that depends on precise timing (for example, a JK flip-flop built purely from AND/OR/NOR gates) will dead-lock or behave incorrectly under Rinku’s update model. If you need a working JK flip-flop (or other timing-dependent component), you should encapsulate it as a single Rinku module whose internals you implement programmatically (e.g. by sampling inputs on clock edges).
+
 ## Installation
 Follow these steps to get Rinku up and running on your machine:
 

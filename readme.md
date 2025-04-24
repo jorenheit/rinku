@@ -409,5 +409,7 @@ The table below shows the full interface for the `System` module.
 | `void connectExitCode<OutputSignal>(module)` | Connect the exit-code signal.                                                              |
 | `void init()`                                | Initialize the system.                                                                     |
 | `signal_t run(resumeOnHalt = false)`         | Run the system continuously. If `resumeOnHalt` is set to true, the halt-signal is ignored. |
-| `void step(resumeOnHalt = false)`            | Process one full clock-cycle (rising -> falling).                                          |
+| `void step(resumeOnHalt = false)`            | Process one full clock-cycle (rising + falling).                                           |
+| `void halfStep(resumeOnHalt = false)`        | Process half a cycle (rising/falling alternating).                                         |
+
 

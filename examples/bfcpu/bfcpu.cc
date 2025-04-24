@@ -36,7 +36,6 @@ BFComputer::BFComputer(std::string const &filename) {
   auto& rd	   = System::addModule<RegisterDriver>();
   auto& ram	   = System::addModule<RAM<8*1024>>();
   auto& cu	   = System::addModule<ControlUnit>();
-
   auto& prog	   = System::addModule<Program>(filename);
   auto& scr	   = System::addModule<Screen>();
   auto& faJoin	   = System::addModule<Joiner<4>>();

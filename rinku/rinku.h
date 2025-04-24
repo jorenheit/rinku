@@ -3,6 +3,7 @@
 
 #include <unordered_set>
 #include <unordered_map>
+#include <queue>
 #include <vector>
 #include <cassert>
 #include <cstdint>
@@ -257,10 +258,10 @@ namespace Rinku {
     class ModuleBase {
       bool _locked = false;
       bool _setOutputAllowed = true;
-      std::vector<bool> _isUpdating;
-      std::vector<std::unordered_set<ModuleBase*>> _dependencies;
       bool _guaranteed = false;
-
+      int _index = -1;
+      std::unordered_set<int> _outgoing;
+      
     public:
       class GuaranteeToken {
 	friend class ModuleBase;
@@ -276,35 +277,33 @@ namespace Rinku {
       };
       
     public:
-      ModuleBase(size_t nInputs):
-	_isUpdating(nInputs),
-	_dependencies(nInputs)
-      {}
-      
       virtual ~ModuleBase() = default;
       virtual void clockRising() {}
       virtual void clockFalling() {}
       virtual void update(GuaranteeToken) {}
       virtual void reset() {}
+      virtual bool updateAndCheck() = 0;
 
-      void addDependency(size_t inputIndex, ModuleBase &dep) {
-	_dependencies[inputIndex].insert(&dep);
+      void update() {
+	this->update(GuaranteeToken{&_guaranteed});
       }
 
-      void updateDependencies(size_t inputIndex) {
-	if (_isUpdating[inputIndex]) return;
-	_isUpdating[inputIndex] = true;
-	
-	for (ModuleBase *dep: _dependencies[inputIndex]) {
-	  if (dep->_guaranteed) continue;
-	  dep->allowSetOutput(true);
-	  dep->update(GuaranteeToken{&dep->_guaranteed});
-	  dep->allowSetOutput(false);
-	}
+      void setModuleIndex(int idx) {
+	_index = idx;
+      }
 
-	_isUpdating[inputIndex] = false;
+      int getModuleIndex() const {
+	return _index;
       }
       
+      void addOutgoing(int idx) {
+	_outgoing.insert(idx);
+      }
+
+      std::unordered_set<int> const &outgoing() const {
+	return _outgoing;
+      }
+
       void lock() {
 	_locked = true;
       }
@@ -323,6 +322,10 @@ namespace Rinku {
 
       void resetGuaranteed() {
 	_guaranteed = false;
+      }
+
+      bool guaranteed() const {
+	return _guaranteed;
       }
     };
 
@@ -348,6 +351,7 @@ namespace Rinku {
 	return true;
       }
     };
+
   } // namespace Impl
 
 
@@ -384,18 +388,31 @@ namespace Rinku {
     std::unordered_set<signal_t const *> inputState[Inputs::N] {};
     std::unordered_map<signal_t const *, bool> activeLow[Inputs::N] {};
 
-    using ModuleBase::allowSetOutput;
-    using ModuleBase::setOutputAllowed;
-    
   public:
-    Module():
-      Impl::ModuleBase(Inputs::N)
-    {}
+
+    virtual bool updateAndCheck() override {
+      if (guaranteed()) return true;
+      
+      signal_t oldOutputs[Outputs::N];
+      for (size_t idx = 0; idx != Outputs::N; ++idx) {
+	oldOutputs[idx] = outputState[idx];
+      }
+
+      this->update();
+
+      for (size_t idx = 0; idx != Outputs::N; ++idx) {
+	if (oldOutputs[idx] != outputState[idx])
+	  return false;
+      }
+      return true;
+    }
     
     template <typename InputSignal, typename OutputSignal, typename OtherModule>
     void connect(OtherModule &other, Impl::DebugInfo const &dbg = {}) {
       static_assert(std::is_base_of_v<Impl::ModuleBase, OtherModule>,
 		    "Other module is not a valid Rinku::Module.");
+      assert(getModuleIndex() != -1 && "input module index not set");
+      assert(other.getModuleIndex() != -1 && "output module index not set");
 
       Impl::runtime_error_if(dbg && locked(),
 			     dbg.file, ":", dbg.line, ": connect called on module \"", dbg.inputObject, "\" "
@@ -420,7 +437,7 @@ namespace Rinku {
 			       "Signal \"", typeid(OutputSignal).name(), "\" is already connected to \"",
 			       typeid(InputSignal).name(), "\" of module \"", typeid(OtherModule).name(), "\".");
 
-      addDependency(inputIndex, other);
+      other.addOutgoing(getModuleIndex());
       inputState[inputIndex].insert(ptr);
       activeLow[inputIndex][ptr] = OutputSignal::ActiveLow;
     }
@@ -447,7 +464,7 @@ namespace Rinku {
       Impl::runtime_warning_if(!dbg && signalAlreadyConnected,
 			       "Signal \"", typeid(InputSignal).name(), "\" is already connected to constant \"",
 			       Value, "\".");
-      
+
       inputState[inputIndex].insert(ptr);
       activeLow[inputIndex][ptr] = false;
     }
@@ -502,8 +519,6 @@ namespace Rinku {
     }
 
     signal_t getInput(size_t inputIndex, signal_t mask = -1, Impl::DebugInfo const &dbg = {}) {
-      updateDependencies(inputIndex);
-      
       Impl::runtime_error_if(dbg && inputIndex >= Inputs::N,
 		       dbg.file, ":", dbg.line,
 		       ": Input-index (", inputIndex, ") out of bounds (#input-signals = ", Inputs::N ,").");
@@ -529,7 +544,7 @@ namespace Rinku {
 
   class System: public Module<SystemInputSignals> {
 
-    class Clock {
+    class Clock_ {
       std::vector<std::shared_ptr<Impl::ModuleBase>> attached;
 
     public:
@@ -539,7 +554,9 @@ namespace Rinku {
 	}
 	
 	for (auto const &m: attached) {
+	  m->allowSetOutput(false);
 	  m->clockRising();
+	  m->allowSetOutput(true);
 	}
       }
       
@@ -549,7 +566,9 @@ namespace Rinku {
 	}
 	
 	for (auto const &m: attached) {
+	  m->allowSetOutput(false);
 	  m->clockFalling();
+	  m->allowSetOutput(true);
 	}
       }
 
@@ -560,20 +579,25 @@ namespace Rinku {
     };
     
     std::vector<std::shared_ptr<Impl::ModuleBase>> modules;
-    Clock clk;
+
+    Clock_ clk;
     bool initialized = false;
-  
+    size_t moduleCount = 0;
+
   public:
-    System() = default;
+    System() {
+      setModuleIndex(-2);
+    }
     
     template <typename ModuleT, typename... Args>
     ModuleT& addModule(Args&&... args) {
       static_assert(std::is_base_of_v<Impl::ModuleBase, ModuleT>,
 		    "Module-type must derive from Module<...>.");
-      
+
       auto ptr = std::make_shared<ModuleT>(std::forward<Args>(args)...);
+      ptr->setModuleIndex(moduleCount++);
       clk.attach(ptr);
-      modules.emplace_back(ptr);  
+      modules.emplace_back(ptr);
       return *ptr;
     }
 
@@ -596,47 +620,84 @@ namespace Rinku {
     void connectExitCode(Module_ &m) {
       connect<SYS_EXIT_CODE, ExitCodeSignal>(m);
     }
-  
-    void init() {
-      this->lock();
-      for (auto const &m: modules) {
-	m->lock();
-	m->reset();
-	m->resetGuaranteed();
+
+    void updateAll() {
+      std::queue<int> q;
+      std::vector<bool> inQ(modules.size(), false);
+
+      for (size_t idx = 0; idx != modules.size(); ++idx) {
+	q.push(idx);
+	inQ[idx] = true;
       }
-      initialized = true;
 
+      while (!q.empty()) {
+	size_t idx = q.front();
+	q.pop();
+	inQ[idx] = false;
+
+	ModuleBase *node = modules[idx].get();
+	bool settled = node->updateAndCheck();
+	if (!settled) {
+	  for (int outIdx: node->outgoing()) {
+	    if (outIdx < 0 || inQ[outIdx]) continue;
+	    q.push(outIdx);
+	    inQ[outIdx] = true;
+	  }
+	}
+      }
     }
-
+    
     virtual void reset() override {
       for (auto const &m: modules) {
 	m->reset();
 	m->resetGuaranteed();
       }
+      updateAll();
+    }
+
+    void init() {
+      this->lock();
+      for (auto const &m: modules) {
+	m->lock();
+      }
+      reset();
+      initialized = true;
     }
     
     signal_t run(bool resume = false) {
-      checkIfInitialized();
       while (!getInput<SYS_EXIT>()) step(resume);
       return getInput<SYS_EXIT_CODE>();
     }
 
-    void step(bool resume = false) {
+    void halfStep(bool resume = false) {
       checkIfInitialized();
 
-      if (getInput<SYS_ERR>()) {
-	signal_t err = getInput<SYS_EXIT_CODE>();
-	Impl::runtime_error("The ERR signal was asserted (error code ", err, ").");
+      static bool phase = 0;
+      updateAll();
+      if (phase == 0) {
+	if (getInput<SYS_ERR>()) {
+	  signal_t err = getInput<SYS_EXIT_CODE>();
+	  Impl::runtime_error("The ERR signal was asserted (error code ", err, ").");
+	}
+	if (getInput<SYS_HLT>() && !resume) {
+	  std::cout << "\nSystem halted, press any key to resume ...";
+	  std::getchar();
+	}
+	clk.rise();
+      }
+      else {
+	clk.fall();
       }
 
-      if (getInput<SYS_HLT>() && !resume) {
-	std::cout << "\nSystem halted, press any key to resume ...";
-	std::getchar();
-      }
-
-      clk.rise();
-      clk.fall();
+      phase = !phase;
+      updateAll();
     }
+    
+    void step(bool resume = false) {
+      halfStep(resume);
+      halfStep(resume);
+    }
+
   private:
     void checkIfInitialized() {
       Impl::runtime_error_if(!initialized,

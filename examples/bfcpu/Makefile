@@ -1,5 +1,5 @@
 CXX := g++
-CXXFLAGS := -O3 -std=c++20 -Wall
+CXXFLAGS := -O3 -std=c++20 -Wall 
 
 SRCS := main.cc bfcpu.cc microcode/microcode.cc
 TARGET := bfcpu

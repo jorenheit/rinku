@@ -1,9 +1,6 @@
 #ifndef RINKU_H
 #define RINKU_H
 
-#include <unordered_set>
-#include <unordered_map>
-#include <queue>
 #include <vector>
 #include <cassert>
 #include <cstdint>
@@ -260,7 +257,6 @@ namespace Rinku {
       bool _setOutputAllowed = true;
       bool _guaranteed = false;
       int _index = -1;
-      std::unordered_set<int> _outgoing;
       
     public:
       class GuaranteeToken {
@@ -282,7 +278,7 @@ namespace Rinku {
       virtual void clockFalling() {}
       virtual void update(GuaranteeToken) {}
       virtual void reset() {}
-      virtual bool updateAndCheck() = 0;
+      virtual std::vector<int> updateAndCheck() = 0;
 
       void update() {
 	this->update(GuaranteeToken{&_guaranteed});
@@ -296,14 +292,6 @@ namespace Rinku {
 	return _index;
       }
       
-      void addOutgoing(int idx) {
-	_outgoing.insert(idx);
-      }
-
-      std::unordered_set<int> const &outgoing() const {
-	return _outgoing;
-      }
-
       void lock() {
 	_locked = true;
       }
@@ -383,15 +371,35 @@ namespace Rinku {
     static constexpr size_t index_of = SignalList::template index_of<S>();
   
   private:
-    std::unordered_set<signal_t> constants;
     signal_t outputState[Outputs::N] {};
-    std::unordered_set<signal_t const *> inputState[Inputs::N] {};
-    std::unordered_map<signal_t const *, bool> activeLow[Inputs::N] {};
+    std::vector<int> outputModules[Outputs::N] {};
+    std::vector<std::pair<signal_t const*, bool>> inputState[Inputs::N];
 
+    void addOutgoing(size_t outputIndex, int idx) {
+      for (int moduleIndex: outputModules[outputIndex])
+	if (moduleIndex == idx) return;
+
+      outputModules[outputIndex].push_back(idx);
+    }
+
+    bool connected(size_t inputIndex, signal_t const *ptr) {
+      for (auto const &pr: inputState[inputIndex])
+	if (pr.first == ptr) 
+	  return true;
+      return false;
+    }
+
+  protected:
+    std::vector<int> const &outgoing(size_t outputIndex) {
+      return outputModules[outputIndex];
+    }
+    
+    
   public:
-
-    virtual bool updateAndCheck() override {
-      if (guaranteed()) return true;
+    Module() = default;
+    
+    virtual std::vector<int> updateAndCheck() override {
+      if (guaranteed()) return {};
       
       signal_t oldOutputs[Outputs::N];
       for (size_t idx = 0; idx != Outputs::N; ++idx) {
@@ -400,11 +408,15 @@ namespace Rinku {
 
       this->update();
 
+      std::vector<int> affected;
       for (size_t idx = 0; idx != Outputs::N; ++idx) {
-	if (oldOutputs[idx] != outputState[idx])
-	  return false;
+	if (oldOutputs[idx] != outputState[idx]) {
+	  auto const &outVec = outgoing(idx);
+	  affected.insert(affected.end(), outVec.begin(), outVec.end());
+	}
       }
-      return true;
+
+      return affected;
     }
     
     template <typename InputSignal, typename OutputSignal, typename OtherModule>
@@ -426,7 +438,7 @@ namespace Rinku {
       constexpr size_t outputIndex = OtherModule::template index_of<typename OutputSignal::Base>;
 
       signal_t *ptr = &other.outputState[outputIndex];
-      bool const signalAlreadyConnected = inputState[inputIndex].contains(ptr);
+      bool signalAlreadyConnected = connected(inputIndex, ptr);
       
       Impl::runtime_warning_if(dbg && signalAlreadyConnected,
 			       dbg.file, ":", dbg.line, ": Signal \"", dbg.inputSignal, "\" of module \"",
@@ -437,13 +449,15 @@ namespace Rinku {
 			       "Signal \"", typeid(OutputSignal).name(), "\" is already connected to \"",
 			       typeid(InputSignal).name(), "\" of module \"", typeid(OtherModule).name(), "\".");
 
-      other.addOutgoing(getModuleIndex());
-      inputState[inputIndex].insert(ptr);
-      activeLow[inputIndex][ptr] = OutputSignal::ActiveLow;
+      if (signalAlreadyConnected) return;
+      other.addOutgoing(outputIndex, getModuleIndex());
+      inputState[inputIndex].push_back({ptr, OutputSignal::ActiveLow});
     }
 
     template <typename InputSignal, signal_t Value>
     void connect(Impl::DebugInfo const &dbg = {}) {
+      static signal_t const value = Value;
+
       static_assert(Value < (1 << InputSignal::Width),
 		    "Constant input value too large for signal-width.");
       
@@ -454,9 +468,9 @@ namespace Rinku {
 			     "Cannot connect signal \"", typeid(InputSignal).name(),
 			     "\" after System::init().");
 
-      signal_t const *ptr = &(*(constants.insert(Value).first));
+      signal_t const *ptr = &value;
       constexpr size_t inputIndex = index_of<InputSignal>;
-      bool const signalAlreadyConnected = inputState[inputIndex].contains(ptr);
+      bool signalAlreadyConnected = connected(inputIndex, ptr);
 
       Impl::runtime_warning_if(dbg && signalAlreadyConnected,
 			       dbg.file, ":", dbg.line, ": Signal \"", dbg.inputSignal, "\" of module \"",
@@ -465,8 +479,8 @@ namespace Rinku {
 			       "Signal \"", typeid(InputSignal).name(), "\" is already connected to constant \"",
 			       Value, "\".");
 
-      inputState[inputIndex].insert(ptr);
-      activeLow[inputIndex][ptr] = false;
+      if (signalAlreadyConnected) return;
+      inputState[inputIndex].push_back({ptr, false});
     }
 
     template <typename S>
@@ -526,11 +540,8 @@ namespace Rinku {
 		       "Input-index (", inputIndex, ") out of bounds (#input-signals = ", Inputs::N ,").");
 
       signal_t result = 0;
-      for (signal_t const *ptr: inputState[inputIndex]) {
-	assert(activeLow[inputIndex].contains(ptr) &&
-	       "FATAL BUG: activeLow does not contain the ptr. Please report this bug.");
-	
-	if (ptr) result |= (activeLow[inputIndex][ptr] ? ~(*ptr) : *ptr);
+      for (auto const &[ptr, activeLow]: inputState[inputIndex]) {
+	if (ptr) result |= (activeLow ? ~(*ptr) : *ptr);
       }
       return result & mask;
     }
@@ -551,9 +562,6 @@ namespace Rinku {
       void rise() {
 	for (auto const &m: attached) {
 	  m->resetGuaranteed();
-	}
-	
-	for (auto const &m: attached) {
 	  m->allowSetOutput(false);
 	  m->clockRising();
 	  m->allowSetOutput(true);
@@ -563,9 +571,6 @@ namespace Rinku {
       void fall() {
 	for (auto const &m: attached) {
 	  m->resetGuaranteed();
-	}
-	
-	for (auto const &m: attached) {
 	  m->allowSetOutput(false);
 	  m->clockFalling();
 	  m->allowSetOutput(true);
@@ -622,27 +627,26 @@ namespace Rinku {
     }
 
     void updateAll() {
-      std::queue<int> q;
       std::vector<bool> inQ(modules.size(), false);
+      std::vector<int> q;
+      q.reserve(modules.size());
+      size_t qHead = 0;
 
       for (size_t idx = 0; idx != modules.size(); ++idx) {
-	q.push(idx);
+	q.push_back(idx);
 	inQ[idx] = true;
       }
 
-      while (!q.empty()) {
-	size_t idx = q.front();
-	q.pop();
+      while (qHead < q.size()) {
+	int idx = q[qHead++];
 	inQ[idx] = false;
 
 	ModuleBase *node = modules[idx].get();
-	bool settled = node->updateAndCheck();
-	if (!settled) {
-	  for (int outIdx: node->outgoing()) {
-	    if (outIdx < 0 || inQ[outIdx]) continue;
-	    q.push(outIdx);
-	    inQ[outIdx] = true;
-	  }
+	std::vector<int> affectedIndices = node->updateAndCheck();
+	for (int outIdx: affectedIndices) {
+	  if (outIdx < 0 || inQ[outIdx]) continue;
+	  q.push_back(outIdx);
+	  inQ[outIdx] = true;
 	}
       }
     }

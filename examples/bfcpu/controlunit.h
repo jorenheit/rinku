@@ -61,6 +61,7 @@ class ControlUnit: MODULE(ControlUnitInputs, ControlUnitOutputs)
 {
   std::vector<size_t> const microcodeRom;
   signal_t currentSignals = 0;
+  bool needsUpdate = true;
   
 public:
   ControlUnit():
@@ -77,18 +78,23 @@ public:
       ((cmd   << 3) & 0b00001111000) |
       ((flags << 7) & 0b11110000000);
 
+    signal_t newSignals = microcodeRom[address];
+    needsUpdate = (newSignals != currentSignals);
     currentSignals = microcodeRom[address];
   }
 
   UPDATE() {
     GUARANTEE_NO_GET_INPUT();
+    if (!needsUpdate) return;
     for (size_t idx = 0; idx != Outputs::N; ++idx) {
       SET_OUTPUT_INDEX(idx, (currentSignals >> idx) & 1);
     }
+    needsUpdate = false;
   }
 
   RESET() {
     currentSignals = 0;
+    needsUpdate = true;
   }
 
 private:

@@ -5,6 +5,7 @@
 #include <cassert>
 #include <cstdint>
 #include <algorithm>
+#include <numeric>
 #include <memory>
 #include <iostream>
 
@@ -213,41 +214,29 @@ namespace Rinku {
 
     template <typename ... Args>
     class Signals_ {
-      template <typename S>
-      static consteval size_t index_of_() {
-	constexpr bool match[] = { std::is_same_v<S, Args> ... };
-	for (size_t idx = 0; idx != sizeof ... (Args); ++idx) {
-	  if (match[idx]) return idx;
-	}
-	return -1;
-      }
-
     public:
       static constexpr size_t N = sizeof ... (Args);
   
-      template <typename S>
+      template <typename S, size_t I = 0>
       static consteval size_t index_of() {
-	constexpr size_t index = index_of_<S>();
-	static_assert(index != -1, "Provided signal is not part of the list for this module.");
-	return index;
+	if constexpr (I == N) {
+	  static_assert(I != N, "Signal type not found in this Signals_ list.");
+	  return -1; // unreachable
+	} else if constexpr (std::is_same_v<S, std::tuple_element_t<I, std::tuple<Args...>>>) {
+	  return I;
+	} else {
+	  return index_of<S, I + 1>();
+	}
       }
 
       static consteval bool is_input_list() {
-	constexpr bool isInput[] = { (Args::IsInput) ... };
-	for (size_t idx = 0; idx != sizeof ... (Args); ++idx) {
-	  if (!isInput[idx]) return false;
-	}
-	return true;
+	return (Args::IsInput && ...);
       }
 
       static consteval bool is_output_list() {
-	constexpr bool isOutput[] = { (Args::IsOutput) ... };
-	for (size_t idx = 0; idx != sizeof ... (Args); ++idx) {
-	  if (!isOutput[idx]) return false;
-	}
-	return true;
+	return (Args::IsOutput && ...);
       }
-
+      
       static_assert(is_input_list() || is_output_list(),
 		    "Signal list must contain only inputs or outputs.");
     };
@@ -345,7 +334,9 @@ namespace Rinku {
 
   template <typename Output>
   struct Not: Impl::Output_<Output::Width, typename Output::Base, !Output::ActiveLow>
-  {};
+  {
+    static_assert(Output::IsOutput, "Cannot negate input signals.");
+  };
   
   template <typename SignalList1 = Impl::Signals_<>,
 	    typename SignalList2 = Impl::Signals_<>>
@@ -389,7 +380,6 @@ namespace Rinku {
       return false;
     }
 
-  protected:
     std::vector<int> const &outgoing(size_t outputIndex) {
       return outputModules[outputIndex];
     }
@@ -398,7 +388,7 @@ namespace Rinku {
   public:
     Module() = default;
     
-    virtual std::vector<int> updateAndCheck() override {
+    virtual std::vector<int> updateAndCheck() override final {
       if (guaranteed()) return {};
       
       signal_t oldOutputs[Outputs::N];
@@ -627,22 +617,21 @@ namespace Rinku {
     }
 
     void updateAll() {
-      std::vector<bool> inQ(modules.size(), false);
-      std::vector<int> q;
-      q.reserve(modules.size());
+      static std::vector<int> q;
+      static std::vector<bool> inQ(moduleCount);
+
+      // Populate the queue with all modules
+      q.resize(moduleCount);
+      std::iota(q.begin(), q.end(), 0);
+      std::fill(inQ.begin(), inQ.end(), true);
+
+      // Update and follow the affected modules until system has settled
       size_t qHead = 0;
-
-      for (size_t idx = 0; idx != modules.size(); ++idx) {
-	q.push_back(idx);
-	inQ[idx] = true;
-      }
-
       while (qHead < q.size()) {
 	int idx = q[qHead++];
 	inQ[idx] = false;
 
-	ModuleBase *node = modules[idx].get();
-	std::vector<int> affectedIndices = node->updateAndCheck();
+	std::vector<int> affectedIndices = modules[idx]->updateAndCheck();
 	for (int outIdx: affectedIndices) {
 	  if (outIdx < 0 || inQ[outIdx]) continue;
 	  q.push_back(outIdx);

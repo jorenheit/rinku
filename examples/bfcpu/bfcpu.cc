@@ -20,24 +20,26 @@ using namespace Rinku::Util; // for splitter, joiner and bus
 #include "controlunit.h" 
 
 // Wire up the system
-BFComputer::BFComputer(std::string const &filename) {
+BFComputer::BFComputer(std::string const &filename, double frequency):
+  System(frequency)
+{
 
-  auto& dataBus	   = System::addModule<Bus>();
-  auto& addressBus = System::addModule<Bus>();
-  auto& faReg	   = System::addModule<CountingRegister<4>>();
-  auto& fbReg	   = System::addModule<CountingRegister<4>>();
-  auto& ccReg	   = System::addModule<CountingRegister<4>>();
-  auto& dReg	   = System::addModule<CountingRegister<8>>();
-  auto& iReg	   = System::addModule<CountingRegister<8>>();
-  auto& spReg	   = System::addModule<CountingRegister<8>>();
-  auto& lsReg	   = System::addModule<CountingRegister<8>>();
-  auto& dpReg	   = System::addModule<CountingRegister<16>>(0x0100);
-  auto& ipReg	   = System::addModule<CountingRegister<16>>();
-  auto& rd	   = System::addModule<RegisterDriver>();
-  auto& ram	   = System::addModule<RAM<8*1024>>();
-  auto& cu	   = System::addModule<ControlUnit>();
-  auto& prog	   = System::addModule<Program>(filename);
-  auto& scr	   = System::addModule<Screen>();
+  auto& dataBus	   = System::addModule<Bus>("databus");
+  auto& addressBus = System::addModule<Bus>("addressbus");
+  auto& faReg	   = System::addModule<CountingRegister<4>>("fa");
+  auto& fbReg	   = System::addModule<CountingRegister<4>>("fb");
+  auto& ccReg	   = System::addModule<CountingRegister<4>>("cc");
+  auto& dReg	   = System::addModule<CountingRegister<8>>("d");
+  auto& iReg	   = System::addModule<CountingRegister<8>>("i");
+  auto& spReg	   = System::addModule<CountingRegister<8>>("sp");
+  auto& lsReg	   = System::addModule<CountingRegister<8>>("ls");
+  auto& dpReg	   = System::addModule<CountingRegister<16>>("dp");
+  auto& ipReg	   = System::addModule<CountingRegister<16>>("ip");
+  auto& rd	   = System::addModule<RegisterDriver>("rd");
+  auto& ram	   = System::addModule<RAM<8*1024>>("ram");
+  auto& cu	   = System::addModule<ControlUnit>("cu");
+  auto& prog	   = System::addModule<Program>("prog", filename);
+  auto& scr	   = System::addModule<Screen>("scr");
   auto& faJoin	   = System::addModule<Joiner<4>>();
   auto& fbJoin	   = System::addModule<Joiner<4>>();
   auto& faSplit	   = System::addModule<Splitter<4>>(); 
@@ -153,6 +155,10 @@ BFComputer::BFComputer(std::string const &filename) {
   connectError<CU_ERR>(cu);
   connectExit<PROG_EXIT>(prog);
 
+  // Connect scope
+  auto& cuScope = addScope("CUScope");
+  cuScope.monitor(cu);
+  
   // Done -> initialize system
   init();
 }

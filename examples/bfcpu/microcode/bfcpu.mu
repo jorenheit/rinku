@@ -51,6 +51,12 @@
   HALT		= 0x0f
 }
 
+# Resgister Select:
+# D  = RS0
+# DP = RS1
+# SP = RS0, RS1
+# IP = RS2
+# LS = RS0, RS2
 
 [microcode] {
   x:0:xxxx              -> LD_FB

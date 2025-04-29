@@ -99,8 +99,7 @@
   LOOP_END:2:xx1x	-> INC, RS2, CR
 
   OUT:1:x00x		-> EN_OUT, EN_D, INC, RS2, CR
-  OUT:1:x10x		-> OE_RAM, LD_D, LD_FA
-  OUT:2:x10x		-> EN_OUT, EN_D, INC, RS2, CR
+  OUT:1:x10x            -> EN_OUT, OE_RAM, INC, RS2, CR  
   OUT:1:xx1x		-> INC, RS2, CR
 
   IN_BUF:1:xx0x		-> EN_IN

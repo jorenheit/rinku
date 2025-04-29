@@ -156,8 +156,7 @@ BFComputer::BFComputer(std::string const &filename, double frequency):
   connectExit<PROG_EXIT>(prog);
 
   // Connect scope
-  auto& cuScope = addScope("CUScope");
-  cuScope.monitor(cu);
+  addScope("CUScope").monitor(cu);
   
   // Done -> initialize system
   init();

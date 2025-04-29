@@ -238,10 +238,15 @@ A few convenient modules that are ready for use can be included from the `rinku/
 | `And`         | `Rinku::Logic` | `AND_IN_A (1)`, `AND_IN_B (1)`            | `AND_OUT (1)`                               | `<rinku/logic/logic.h>`   |
 | `Or`          | `Rinku::Logic` | `OR_IN_A (1)`, `OR_IN_B (1)`              | `OR_OUT (1)`                                | `<rinku/logic/logic.h>`   |
 | `Xor`         | `Rinku::Logic` | `XOR_IN_A (1)`, `AND_IN_B (1)`            | `XOR_OUT (1)`                               | `<rinku/logic/logic.h>`   |
+| `Clock`       | `Rinku::Util`  |                                           | `CLK_OUT (1)`                               | `<rinku/util/clock.h>`    |
 | `Switch`      | `Rinku::Util`  |                                           | `SWITCH_OUT (1)`                            | `<rinku/util/switch.h>`   |
 | `Bus`         | `Rinku::Util`  | `BUS_DATA_IN (64)`                        | `BUS_DATA_OUT (64)`                         | `<rinku/util/bus.h>`      |
 | `Splitter<N>` | `Rinku::Util`  | `SPLITTER_IN (64)`                        | `SPLITTER_OUT_X (1)`</br>(`X` from 0 to 63) | `<rinku/util/splitter.h>` |
 | `Joiner<N>`   | `Rinku::Util`  | `JOINER_IN_X (1)` <br/>(`X` from 0 to 63) | `JOINER_OUT (64)`                           | `<rinku/util/joiner.h>`   |
+
+#### Clock
+While you never have to worry about connecting a clock manually (every module is clocked by calling its clock-handlers), you might need to connect the clock
+directly to input of your module. To do this, the `Clock` module can be used as a proxy; it simply sets its output high on every rising edge and low on every falling edge of the 'real' system-clock.
 
 #### Switch Members
 The `Switch` module does not have inputs that it acts upon. Instead, it can be operated using the functions `Switch::set(bool)` or `Switch::toggle()`.

@@ -383,7 +383,8 @@ namespace Rinku {
     static_assert(Output::IsOutput, "Cannot negate input signals.");
     static constexpr char const *Name = "NOT";
   };
-  
+
+  // specialize this for single input/output modules?
   template <typename SignalList1 = Impl::Signals_<>,
 	    typename SignalList2 = Impl::Signals_<>>
   class Module: public Impl::ModuleBase {
@@ -479,7 +480,7 @@ namespace Rinku {
 
 
       Error::throw_runtime_error_if
-	<Error::SystemLocked>(locked(), name(), InputSignal::Name, other.name(), OutputSignal::Name);
+	<Error::SystemLocked>(locked(), this->name(), InputSignal::Name, other.ModuleBase::name(), OutputSignal::Name);
 			    
       
       constexpr size_t inputIndex = index_of<InputSignal>;
@@ -500,7 +501,7 @@ namespace Rinku {
 		    "Constant input value too large for signal-width.");
 
       Error::throw_runtime_error_if
-	<Error::SystemLocked>(locked(), name(), InputSignal::Name, "CONST(" + std::to_string(value) + ")", "OUT"); 
+	<Error::SystemLocked>(locked(), ModuleBase::name(), InputSignal::Name, "CONST(" + std::to_string(value) + ")", "OUT"); 
 
       signal_t const *ptr = &value;
       constexpr size_t inputIndex = index_of<InputSignal>;
@@ -519,7 +520,7 @@ namespace Rinku {
 
     void setOutput(std::string const &signalName, signal_t value) {
       Error::throw_runtime_error_if
-	<Error::InvalidSignalName>(!nameToOutput.contains(signalName), name(), signalName);
+	<Error::InvalidSignalName>(!nameToOutput.contains(signalName), ModuleBase::name(), signalName);
 
       auto [outputIndex, mask] = nameToOutput[signalName];
       return setOutput(outputIndex, value, mask);
@@ -527,10 +528,10 @@ namespace Rinku {
     
     void setOutput(size_t outputIndex, signal_t value, signal_t mask = -1) {
       Error::throw_runtime_error_if
-	<Error::OutputChangeNotAllowed>(!setOutputAllowed(), name());
+	<Error::OutputChangeNotAllowed>(!setOutputAllowed(), ModuleBase::name());
 
       Error::throw_runtime_error_if
-	<Error::IndexOutOfBounds>(outputIndex >= Outputs::N, "output", name(), outputIndex, Outputs::N);
+	<Error::IndexOutOfBounds>(outputIndex >= Outputs::N, "output", ModuleBase::name(), outputIndex, Outputs::N);
 
       outputState[outputIndex] = value & mask;
     }
@@ -545,7 +546,7 @@ namespace Rinku {
 
     signal_t getOutput(std::string const &signalName) {
       Error::throw_runtime_error_if
-	<Error::InvalidSignalName>(!nameToOutput.contains(signalName), name(), signalName);
+	<Error::InvalidSignalName>(!nameToOutput.contains(signalName), ModuleBase::name(), signalName);
 
       auto [outputIndex, mask] = nameToOutput[signalName];
       return getInput(outputIndex, mask);
@@ -553,7 +554,7 @@ namespace Rinku {
     
     signal_t getOutput(size_t outputIndex, signal_t mask = -1) {
       Error::throw_runtime_error_if
-	<Error::IndexOutOfBounds>(outputIndex >= Outputs::N, "output", name(), outputIndex, Outputs::N);
+	<Error::IndexOutOfBounds>(outputIndex >= Outputs::N, "output", ModuleBase::name(), outputIndex, Outputs::N);
       
       return outputState[outputIndex] & mask;
     }
@@ -568,7 +569,7 @@ namespace Rinku {
 
     signal_t getInput(std::string const &signalName) {
       Error::throw_runtime_error_if
-	<Error::InvalidSignalName>(!nameToInput.contains(signalName), name(), signalName);
+	<Error::InvalidSignalName>(!nameToInput.contains(signalName), ModuleBase::name(), signalName);
       
       auto const [inputIndex, mask] = nameToInput[signalName];
       return getInput(inputIndex, mask);
@@ -576,7 +577,7 @@ namespace Rinku {
     
     signal_t getInput(size_t inputIndex, signal_t mask = -1) {
       Error::throw_runtime_error_if
-	<Error::IndexOutOfBounds>(inputIndex >= Inputs::N, "input", name(), inputIndex, Inputs::N);
+	<Error::IndexOutOfBounds>(inputIndex >= Inputs::N, "input", ModuleBase::name(), inputIndex, Inputs::N);
       
       signal_t result = 0;
       for (auto const &[ptr, activeLow]: inputState[inputIndex]) {
@@ -1062,11 +1063,11 @@ namespace Rinku {
     signal_t const *getOutputSignalPointer(ModuleType const &mod, size_t index) const {
       
       Error::throw_runtime_error_if
-	<Error::InvalidModuleName>(!moduleIndexByName.contains(mod.name()), mod.name());
+	<Error::InvalidModuleName>(!moduleIndexByName.contains(mod.ModuleBase::name()), mod.ModuleBase::name());
 
       Error::throw_runtime_error_if
 	<Error::IndexOutOfBounds>(index >= ModuleType::Outputs::N,
-				  "output", mod.name(), index, ModuleType::Outputs::N);
+				  "output", mod.ModuleBase::name(), index, ModuleType::Outputs::N);
       
       return &mod.outputState[index];
     }
@@ -1093,12 +1094,12 @@ namespace Rinku {
     static_assert(OutputSignal::IsOutput, "VcdScope can only monitor output signals");
 
     Error::throw_runtime_error_if
-      <Error::SystemLocked>(_sys.locked(), _name, "SCOPE_IN", mod.name(), OutputSignal::Name);
+      <Error::SystemLocked>(_sys.locked(), _name, "SCOPE_IN", mod.ModuleBase::name(), OutputSignal::Name);
 
     signal_t const *ptr = _sys.getOutputSignalPointer<OutputSignal>(mod);
     assert(ptr && "getOutputSignalPointer should never return nullptr");
     
-    monitor(ptr, OutputSignal::Mask, mod.name(), OutputSignal::Name);
+    monitor(ptr, OutputSignal::Mask, mod.ModuleBase::name(), OutputSignal::Name);
   }
 
   template <typename ModuleType>
@@ -1107,7 +1108,7 @@ namespace Rinku {
     signal_t const *outputMasks = ModuleType::Outputs::masks();
     
     for (size_t idx = 0; idx != ModuleType::Outputs::N; ++idx) {
-      monitor(_sys.getOutputSignalPointer(mod, idx), outputMasks[idx], mod.name(), outputNames[idx]);
+      monitor(_sys.getOutputSignalPointer(mod, idx), outputMasks[idx], mod.ModuleBase::name(), outputNames[idx]);
     }
   }
 

@@ -456,9 +456,10 @@ After a scope has been attached, you can tell it to monitor certain signals usin
   MySystem::MySystem() {
     auto& regA = addModule<Register>();
     auto& regB = addModule<Register>();
-    
-    // rest of the system
-    auto& scopeA = addScope("Register A Scope");
+    // define and connect rest of the system
+
+	// Add scopes
+	auto& scopeA = addScope("Register A Scope");
     auto& scopeB = addScope("Register B Scope");
 
     scopeA.monitor(regA); // all outputs of regA will be logged

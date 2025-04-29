@@ -747,6 +747,7 @@ namespace Rinku {
       }
     };
 
+    // TODO: prefix members with underscore, check other classes too
     std::unordered_map<std::string, size_t> moduleIndexByName;
     std::vector<std::shared_ptr<Impl::ModuleBase>> modules;
     std::vector<std::shared_ptr<VcdScope>> scopes;
@@ -991,9 +992,29 @@ namespace Rinku {
     
     template <typename ... Scopes>
     std::string vcd(Scopes const & ... _scopes) {
-      static_assert(sizeof ... (Scopes) > 0, "System::vcd must be called with at least 1 scope");
-      static_assert(( ... && (std::is_same_v<std::decay_t<Scopes>, VcdScope> || std::is_convertible_v<std::decay_t<Scopes>, std::string>)),
-		    "System::vcd() must be called with either VcdScope objects or strings (names).");
+
+      std::vector<VcdScope const *> scopeVec;
+      if constexpr (sizeof ...(Scopes) > 0) {
+	static_assert(( ... && (std::is_same_v<std::decay_t<Scopes>, VcdScope> || std::is_convertible_v<std::decay_t<Scopes>, std::string>)),
+		      "System::vcd() must be called with either VcdScope objects or strings (names).");
+	
+	// Build table of scope pointers; arguments could be type VcdScope or strings
+	auto const getScopePointer = [&]<typename T>(T const &scopeVar) -> VcdScope const *{
+	  if constexpr (std::is_same_v<std::decay_t<T>, VcdScope>) {
+	    return &scopeVar;
+	  }
+	  else {
+	    return &getScope(scopeVar);
+	  }
+	};
+
+	scopeVec = { getScopePointer(_scopes) ... };
+      }
+      else {
+	for (auto const &ptr: scopes) {
+	  scopeVec.push_back(ptr.get());
+	}
+      }
       
       auto const getTimescale = [](double f) -> std::string {
 	static constexpr char const *values[] = { "100", "10", "1" };
@@ -1002,18 +1023,6 @@ namespace Rinku {
 	return (std::string(values[power % 3]) + std::string(units[ power / 3]));
       };
 
-      // Build table of scope pointers; arguments could be type VcdScope or strings
-      auto const getScopePointer = [&]<typename T>(T const &scopeVar) -> VcdScope const *{
-	if constexpr (std::is_same_v<std::decay_t<T>, VcdScope>) {
-	  return &scopeVar;
-	}
-	else {
-	  return &getScope(scopeVar);
-	}
-      };
-      
-      VcdScope const *scopes[] = { getScopePointer(_scopes) ... };
-      
       // Emit header
       std::ostringstream out;
       auto now = std::chrono::system_clock::now();
@@ -1025,7 +1034,7 @@ namespace Rinku {
 
       // Emit definitions for all scopes and collect events
       std::vector<VcdScope::VCD::Event> events;
-      for (VcdScope const *scope: scopes) {
+      for (VcdScope const *scope: scopeVec) {
 	VcdScope::VCD currentVcd = scope->vcd();
 	out << currentVcd.definitions;
 	events.insert(events.end(), currentVcd.events.begin(), currentVcd.events.end());

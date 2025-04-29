@@ -13,7 +13,7 @@ int main(int argc, char **argv) try {
 
   if (argc > 2) {
     std::ofstream vcdFile(argv[2]);
-    vcdFile << cpu.vcd("CUScope") << '\n';
+    vcdFile << cpu.vcd() << '\n';
   }
   
   std::cout << "DONE! Exit code: " << err << '\n';

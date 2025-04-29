@@ -13,6 +13,7 @@
 #include <format>
 #include <chrono>
 #include <unordered_set>
+#include <unordered_map>
 #include <cmath>
 
 #define UNREACHABLE__ assert(false && "UNREACHABLE");

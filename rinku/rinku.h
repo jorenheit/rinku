@@ -998,17 +998,12 @@ namespace Rinku {
 	static_assert(( ... && (std::is_same_v<std::decay_t<Scopes>, VcdScope> || std::is_convertible_v<std::decay_t<Scopes>, std::string>)),
 		      "System::vcd() must be called with either VcdScope objects or strings (names).");
 	
-	// Build table of scope pointers; arguments could be type VcdScope or strings
-	auto const getScopePointer = [&]<typename T>(T const &scopeVar) -> VcdScope const *{
-	  if constexpr (std::is_same_v<std::decay_t<T>, VcdScope>) {
-	    return &scopeVar;
-	  }
-	  else {
-	    return &getScope(scopeVar);
-	  }
+	scopeVec = {
+	  [&]<typename T>(T const &scopeVar) -> VcdScope const * {
+	    if constexpr (std::is_same_v<std::decay_t<T>, VcdScope>) return &scopeVar;
+	    else return &getScope(scopeVar);
+	  }(_scopes) ...
 	};
-
-	scopeVec = { getScopePointer(_scopes) ... };
       }
       else {
 	for (auto const &ptr: scopes) {

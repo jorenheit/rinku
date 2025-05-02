@@ -65,7 +65,7 @@ namespace Rinku {
 	  return;
 	
 	for (size_t idx = 0; idx != N; ++idx) {
-	  setOutput(idx, (input >> idx), 1);
+	  setOutput(idx, (input >> idx));
 	}
 
 	initialized = true;

@@ -15,8 +15,8 @@ int main(int argc, char **argv) try {
     std::ofstream vcdFile(argv[2]);
     vcdFile << cpu.vcd() << '\n';
   }
-  
   std::cout << "DONE! Exit code: " << err << '\n';
+  
  } catch (Rinku::Error::Exception &err) {
   std::cerr << err.what() << '\n';
  }

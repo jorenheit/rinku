@@ -33,7 +33,7 @@ BFComputer::BFComputer(std::string const &filename, double frequency):
   auto& iReg	   = System::addModule<CountingRegister<8>>("i");
   auto& spReg	   = System::addModule<CountingRegister<8>>("sp");
   auto& lsReg	   = System::addModule<CountingRegister<8>>("ls");
-  auto& dpReg	   = System::addModule<CountingRegister<16>>("dp");
+  auto& dpReg	   = System::addModule<CountingRegister<16>>("dp", 0x0100);
   auto& ipReg	   = System::addModule<CountingRegister<16>>("ip");
   auto& rd	   = System::addModule<RegisterDriver>("rd");
   auto& ram	   = System::addModule<RAM<8*1024>>("ram");

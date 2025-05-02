@@ -87,7 +87,7 @@ public:
     GUARANTEE_NO_GET_INPUT();
     if (!needsUpdate) return;
     for (size_t idx = 0; idx != Outputs::N; ++idx) {
-      SET_OUTPUT_INDEX(idx, (currentSignals >> idx) & 1);
+      SET_OUTPUT_INDEX(idx, (currentSignals >> idx));
     }
     needsUpdate = false;
   }

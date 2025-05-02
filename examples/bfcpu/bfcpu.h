@@ -6,7 +6,7 @@
 #include "../../rinku/rinku.h"
 
 struct BFComputer: Rinku::System {
-  BFComputer(std::string const &filename, double frequency);
+  BFComputer(std::string const &filename, double frequency = 1);
 };
 
 

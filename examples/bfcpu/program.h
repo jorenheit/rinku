@@ -23,6 +23,10 @@ public:
 	      std::istreambuf_iterator<char>{},
 	      std::back_inserter(data));
   }
+
+  RESET() {
+    SET_OUTPUT(PROG_EXIT, 0);
+  }
   
   UPDATE() {
     assert(data.size() > 0 && "no program loaded");

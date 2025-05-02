@@ -31,4 +31,5 @@ public:
     address = GET_INPUT(RAM_ADDR_IN);
     SET_OUTPUT(RAM_DATA_OUT, GET_INPUT(OE_RAM) ? data[address] : 0);
   }
+
 };

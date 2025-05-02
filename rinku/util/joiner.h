@@ -58,7 +58,7 @@ namespace Rinku {
       virtual void update(GuaranteeToken) override {
 	size_t result = 0;
 	for (size_t idx = 0; idx != N; ++idx) {
-	  result |= (getInput(idx, 1) << idx);
+	  result |= (getInput(idx) << idx);
 	}
     
 	setOutput<JOINER_OUT>(result);

@@ -1,0 +1,6 @@
+The BFCPU project is a seperate project in which I built an 8-bit Brainfuck computer on breadboards. In this example Rinku-project,
+I remade the entire CPU in software; it can run the same binaries as the hardware implementation, which are canonical BF-programs
+(text-files containing +-<>[].,) that have been assembled using my assember `bfasm`.
+
+I'm stil working on the documentation for this project, but all source-code (including bfasm) and a draft of the report is available
+on `https://github.com/jorenheit/bfcpu`.

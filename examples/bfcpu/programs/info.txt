@@ -1,2 +1,0 @@
-These binary images were assembled using `bfasm`, a BF assembler that produces machine-code instructions for the bfcpu.
-See https://github.com/jorenheit/bfcpu for more info.

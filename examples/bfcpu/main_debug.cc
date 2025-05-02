@@ -12,6 +12,6 @@ int main(int argc, char **argv) try {
   
   BFComputer(argv[1]).debug();
   
- } catch (Rinku::Error::Exception &err) {
+} catch (Rinku::Error::Exception &err) {
   std::cerr << err.what() << '\n';
- }
+}

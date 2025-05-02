@@ -4,7 +4,11 @@
 
 
 ## Introduction
-Rinku is a C++ header-only library designed to simplify the creation of cycle-accurate, event-driven computational systems. By defining *signals* and *modules* that communicate via well-defined interfaces, Rinku enables you to compose complex hardware-like architectures entirely in C++, with automatic propagation of signal changes and clock-driven update semantics. Additionally, signals can be monitored during runtime and exported as a VCD file for visual inspection and debugging using a tool like [GTKWave](https://gtkwave.sourceforge.net/).
+Rinku is a C++ header-only library designed to simplify the creation of cycle-accurate, event-driven computational systems. By defining *signals* and *modules* that communicate via well-defined interfaces, Rinku enables you to compose complex hardware-like architectures entirely in C++, with automatic propagation of signal changes and clock-driven update semantics. Once a system is built, you can
+1. Simply run the system or embed the system in a larger codebase.
+2. Connect virtual scopes and export the waveforms to VCD files and view them in VCD-viewing utilities like [GTKWave](https://gtkwave.sourceforge.net/).
+3. Enter a debugging shell to interact with the system in real-time while it's running.
+4. Probably more! It's a library so do your thing...
 
 ### Motivation
 The library was developed for aid in prototyping and debugging a custom designed breadboard computer, inspired by Ben Eater's 8-bit computer. The resulting system has been added as one of the examples (bfcpu) and has proven this library to be a valuable tool in the development of such systems (at least for me). More information about the bfcpu-project can be found on [Github](https://github.com/jorenheit/bfcpu). To incorporate the microcode for the BFCPU into the simulated system, [Mugen](https://github.com/jorenheit/mugen) was used to generate the `microcode.h` and `microcode.cc` source files.
@@ -13,7 +17,7 @@ The library was developed for aid in prototyping and debugging a custom designed
 Rinku models all signals and gates as ideal, zero-delay logic. It does not simulate real-world propagation delays, so any circuit that depends on precise timing (for example, a JK flip-flop built purely from AND/OR/NOR gates) will dead-lock or behave incorrectly under Rinku’s update model. If you need a working JK flip-flop (or other timing-dependent component), you should encapsulate it as a single Rinku module whose internals you implement programmatically (e.g. by sampling inputs on clock edges).
 
 ## Installation
-Follow these steps to get Rinku up and running on your machine:
+The Rinku-core is header-only. You only need to include the `rinku.h` header-file in your C++ source to be able to use all of it's features, except for the debugger. For instructions on how to install the debugger, see the dedicated section on debugging at the end of this readme. The instructions below will only install the rinku header to your default include path (if you so wish).
 
 1. **Clone the repository**
 
@@ -54,12 +58,11 @@ Follow these steps to get Rinku up and running on your machine:
    - **BFCPU Emulator**
      ```sh
      cd examples/bfcpu
-     make                         # produces the `bfcpu` executable
+     make run                     # produces the `bfcpu` executable
      ./bfcpu programs/hello.bin   # run `hello world` on the emulator
      ```
 
-Once installed, you can add Rinku to your own projects simply by including the headers and compiling with C++20.
-
+Note that the BFCPU example project also comes with a main-file that starts a debugging session (built by `make debug`). For this to work, you will first need to install the rinku debugging library (see below). Once installed, you can add Rinku to your own projects simply by including the headers and compiling with C++20.
 
 ## Workflow
 
@@ -86,6 +89,9 @@ Furthermore, all types defined by Rinku are in the `Rinku` namespace. Simply use
 The setup of the system can only be done at compiletime. Signals are compiletime entities (types) which are passed as template parameters, so these functions cannot be called at runtime using runtime-determined signals. This was a deliberate choice; the compiler will catch a lot of wiring mistakes because it knows which signals belong to which modules, if these are inputs or outputs, etc. Rinku is therefore not meant as a backend for a dynamic system-building experience.
 
 Once the system is built, it can be interacted with during runtime if you choose to. Many access-function have compiletime and runtime variants. If you have all the information at compiletime, simply use the corresponding compiletime variants (or macro's) as this is the fastest way to run your system (no name-lookups). If you're buildig a more advanced and interactive experience, runtime variants are available (and no macro aliases). For more information on these advanced features, see the corresponding chapter and function references at the end of this document.
+
+### Debugger
+A ready-to-use debugger was built upon these runtime features to implement a fully interactive debugging shell in which you can set breakpoints, inspect signals or even change them at runtime. See the corresponding chapter near the end of this document for more information on how to build and run the debugger.
 
 ## Creating a Module
 To create a new module to be part of a system we take the following steps:
@@ -515,46 +521,103 @@ For more fine-grained control in interactive implementations, different actions 
 | `InvalidModuleType`      | `System::getModule<T>`                                             | The module cannot be downcast to `T`.            |
 
 
+## Debugger
+To use the Rinku debugging shell `rdb`, you first need to compile a static library that you later need to link against. Once the library has been installed, it can be linked against using `-lrinku`. From the root folder containing the makefile, run
+
+   ```sh
+   make debug         # builds librinku.a
+   make install-debug # copies the library into /usr/local/lib
+   ```
+   
+Before including `rinku.h`, you must define `RINKU_ENABLE_DEBUGGER` to enable the `debug()` function in the `Rinku::System` interface. Then, after building your system as usual, simply call `System::debug` on your system instead of `System::run`. For example, this is the main function that starts a debugging shell for the `bfcpu` project in the examples folder. 
+
+  ```cpp
+  #define RINKU_ENABLE_DEBUGGER
+  #include "bfcpu.h"
+  
+  int main(int argc, char **argv) try {
+    if (argc < 2) {
+      std::cerr << "Insufficient arguments: " << argv[0] << " <program.bin>\n";
+      return 1;
+    }
+    
+    BFComputer(argv[1]).debug();
+    
+  } catch (Rinku::Error::Exception &err) {
+    std::cerr << err.what() << '\n';
+  }
+  ```
+
+### Debugging Features
+When the shell is entered, you are greeted by an invitation to type 'help' for help. When you do, it shows a list of available commands, the most important of which are listed in the table below. Refer to the dedicated help commands for more information on each of the specific commands (e.g. type `help poke` to get more extensive information on the `poke` command).
+
+| Command  | Description                                                                  |
+|----------|------------------------------------------------------------------------------|
+| `list`   | List all available modules or their signals.                                 |
+| `run`    | Run the system until a breakpoint is hit, the system quits or hits an error. |
+| `step`   | Advance the clock by a full cycle.                                           |
+| `half`   | Advance the clock by half a cycle.                                           |
+| `break`  | Set a breakpoint or list currently active breakpoints.                       |
+| `delete` | Delete one or more breakpoints.                                              |
+| `peek`   | Show input/output values for a module.                                       |
+| `poke`   | Change output value inside a module.                                         |
+
+ 
 
 ## Function Reference
 ### `class System`
-| Method                                                                                                                  | Return        | Description                                                                                                                                                                                                                                               |
-|-------------------------------------------------------------------------------------------------------------------------|---------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `System([freq])`                                                                                                        |               | System constructor; optionally pass a frequency to be used when generating VCD.                                                                                                                                                                           |
-| `addModule<ModuleType>(args...)`</br>`ADD_MODULE(ModuleType, args ...)`</br>`ADD_MODULE(system, ModuleType, args ...)`  | `ModuleType&` | Add a module to the system and return a reference to the module.</br>Optionally: pass a label as its first argument, followed by constructor arguments.</br>Might throw `DuplicateModuleNames`.                                                           |
-| `getModule<ModuleType>("label")`                                                                                        | `ModuleType&` | Returns a reference to the module with the label `"label"`.</br>Might throw `InvalidModuleName`, `InvalidModuleType`.                                                                                                                                     |
-| `connectHalt<Signal>(module)`</br>`SYSTEM_HALT(Signal, module)`</br>`SYSTEM_HALT(system, Signal, module)`               | `void`        | Connect `Signal` from `module` to the `SYS_HLT` input of the system.                                                                                                                                                                                      |
-| `connectError<Signal>(module)`</br>`SYSTEM_ERROR(Signal, module)`</br>`SYSTEM_ERROR(system, Signal, module)`            | `void`        | Connect `Signal` from `module` to the `SYS_ERR` input of the system.                                                                                                                                                                                      |
-| `connectExit<Signal>(module)`</br>`SYSTEM_EXIT(Signal, module)`</br>`SYSTEM_EXIT(system, Signal, module)`               | `void`        | Connect `Signal` from `module` to the `SYS_EXIT` input of the system.                                                                                                                                                                                     |
-| `connectExitCode<Signal>(module)`</br>`SYSTEM_EXIT_CODE(Signal, module)`</br>`SYSTEM_EXIT_CODE(system, Signal, module)` | `void`        | Connect `Signal` from `module` to the `SYS_EXIT_CODE` input of the system.                                                                                                                                                                                |
-| `init()`                                                                                                                | `void`        | Initialize and lock the system.                                                                                                                                                                                                                           |
-| `reset()`                                                                                                               | `void`        | Reset the system.                                                                                                                                                                                                                                         |
-| `run(resumeOnHalt = false)`                                                                                             | `signal_t`    | Run continuously until halted or an error occurs.</br>If `resumeOnHalt` is `true`, the `SYS_HLT` signal is ignored.</br>Returns the signal asserted on its `SYS_EXIT_CODE` input, or `-1` on error.</br>Might throw `SystemNotInitialized`.               |
-| `step(resumeOnHalt = false)`                                                                                            | `bool`        | Single-step the system (rising edge followed by falling clock edge).</br>If `resumeOnHalt` is `true`, the `SYS_HLT` signal is ignored.</br>Returns `true` unless the `SYS_ERR` or `SYS_EXIT` signal was asserted.</br>Might throw `SystemNotInitialized`. |
-| `halfStep(resumeOnHalt = false)`                                                                                        | `bool`        | Half-step the system (alternating rising and falling edge).</br>If `resumeOnHalt` is `true`, the `SYS_HLT` signal is ignored.</br>Returns `true` unless the `SYS_ERR` or `SYS_EXIT` signal was asserted.</br>Might throw `SystemNotInitialized`.          |
-| `addScope("name")`                                                                                                      | `VcdScope&`   | Adds a `VcdScope` to the system and returns a reference. Might throw `DuplicateScopeNames`.                                                                                                                                                               |
-| `getScope("name")`                                                                                                      | `VcdScope&`   | Returns a reference to the `VcdScope` object with label `"name"`. Might throw `InvalidScopeName`.                                                                                                                                                         |
-| `vcd(scope1, "scope2", ...)`                                                                                            | `std::string` | Returns a VCD-formatted string that can be parsed by VCD-viewers like GTKWave.</br>Arguments may be `VcdScope&` or labels (strings) in any order.</br>Might throw `InvalidScopeName`.                                                                     |
+| Method                                                                                                                  | Return                     | Description                                                                                                                                                                                                                                               |
+|-------------------------------------------------------------------------------------------------------------------------|----------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `System([freq])`                                                                                                        |                            | System constructor; optionally pass a frequency to be used when generating VCD.                                                                                                                                                                           |
+| `addModule<ModuleType>(args...)`</br>`ADD_MODULE(ModuleType, args ...)`</br>`ADD_MODULE(system, ModuleType, args ...)`  | `ModuleType&`              | Add a module to the system and return a reference to the module.</br>Optionally: pass a label as its first argument, followed by constructor arguments.</br>Might throw `DuplicateModuleNames`.                                                           |
+| `getModule<ModuleType>("label")`                                                                                        | `ModuleType&`              | Returns a reference to the module with the label `"label"`.</br>Might throw `InvalidModuleName`, `InvalidModuleType`.                                                                                                                                     |
+| `connectHalt<Signal>(module)`</br>`SYSTEM_HALT(Signal, module)`</br>`SYSTEM_HALT(system, Signal, module)`               | `void`                     | Connect `Signal` from `module` to the `SYS_HLT` input of the system.                                                                                                                                                                                      |
+| `connectError<Signal>(module)`</br>`SYSTEM_ERROR(Signal, module)`</br>`SYSTEM_ERROR(system, Signal, module)`            | `void`                     | Connect `Signal` from `module` to the `SYS_ERR` input of the system.                                                                                                                                                                                      |
+| `connectExit<Signal>(module)`</br>`SYSTEM_EXIT(Signal, module)`</br>`SYSTEM_EXIT(system, Signal, module)`               | `void`                     | Connect `Signal` from `module` to the `SYS_EXIT` input of the system.                                                                                                                                                                                     |
+| `connectExitCode<Signal>(module)`</br>`SYSTEM_EXIT_CODE(Signal, module)`</br>`SYSTEM_EXIT_CODE(system, Signal, module)` | `void`                     | Connect `Signal` from `module` to the `SYS_EXIT_CODE` input of the system.                                                                                                                                                                                |
+| `init()`                                                                                                                | `void`                     | Initialize and lock the system.                                                                                                                                                                                                                           |
+| `reset()`                                                                                                               | `void`                     | Reset the system.                                                                                                                                                                                                                                         |
+| `run(resumeOnHalt = false)`                                                                                             | `signal_t`                 | Run continuously until halted or an error occurs.</br>If `resumeOnHalt` is `true`, the `SYS_HLT` signal is ignored.</br>Returns the signal asserted on its `SYS_EXIT_CODE` input, or `-1` on error.</br>Might throw `SystemNotInitialized`.               |
+| `step(resumeOnHalt = false)`                                                                                            | `bool`                     | Single-step the system (rising edge followed by falling clock edge).</br>If `resumeOnHalt` is `true`, the `SYS_HLT` signal is ignored.</br>Returns `true` unless the `SYS_ERR` or `SYS_EXIT` signal was asserted.</br>Might throw `SystemNotInitialized`. |
+| `halfStep(resumeOnHalt = false)`                                                                                        | `bool`                     | Half-step the system (alternating rising and falling edge).</br>If `resumeOnHalt` is `true`, the `SYS_HLT` signal is ignored.</br>Returns `true` unless the `SYS_ERR` or `SYS_EXIT` signal was asserted.</br>Might throw `SystemNotInitialized`.          |
+| `updateAll()`                                                                                                           | `void`                     | Force an update on all modules.                                                                                                                                                                                                                           |
+| `namedModules()`                                                                                                        | `std::vector<std::string>` | Return a list of all (non-anonymous) module-labels.                                                                                                                                                                                                       |
+| `addScope("name")`                                                                                                      | `VcdScope&`                | Adds a `VcdScope` to the system and returns a reference. Might throw `DuplicateScopeNames`.                                                                                                                                                               |
+| `getScope("name")`                                                                                                      | `VcdScope&`                | Returns a reference to the `VcdScope` object with label `"name"`. Might throw `InvalidScopeName`.                                                                                                                                                         |
+| `vcd(scope1, "scope2", ...)`                                                                                            | `std::string`              | Returns a VCD-formatted string that can be parsed by VCD-viewers like GTKWave.</br>Arguments may be `VcdScope&` or labels (strings) in any order.</br>Might throw `InvalidScopeName`.                                                                     |
 
 	
 ### `class Module<>`
-| Method                                                                                             | Return     | Description                                                                                  |
-|----------------------------------------------------------------------------------------------------|------------|----------------------------------------------------------------------------------------------|
-| `connect<Input, Output>(outputModule)`</br>`CONNECT_MOD(inputModule, Input, outputModule, Output)` | `void`     | Connect `Input` of the module to `Output` of `outputModule`.</br>Might throw `SystemLocked`. |
-| `connect<Input, Value>()`</br>`CONNECT_CONST(inputModule, Input, Value)`                           | `void`     | Hardwire `Input` to constant `Value`.                                                        |
-| `setOutput<Output>(value)`</br>`SET_OUTPUT(value)`                                                 | `void`     | Set `Output` to `value`.                                                                     |
-| `setOutput("Output", value)`                                                                       | `void`     | Set output by label to `value`.</br>Might throw `InvalidSignalName`.                         |
-| `getOutput<Output>()`</br>`GET_OUTPUT(Output)`                                                     | `signal_t` | Returns the value currently at the given `Output`.                                           |
-| `getOutput("Output")`                                                                              | `signal_t` | Get output by label.</br>Might throw `InvalidSignalName`.                                    |
-| `getInput<Input>()`</br>`GET_INPUT(Input)`                                                         | `signal_t` | Get value currently on `Input`.                                                              |
-| `getInput("Input")`                                                                                | `signal_t` | Get input by label.</br>Might throw `InvalidSignalName`.                                     |
+| Method                                                                                             | Return                     | Description                                                                                  |
+|----------------------------------------------------------------------------------------------------|----------------------------|----------------------------------------------------------------------------------------------|
+| `connect<Input, Output>(outputModule)`</br>`CONNECT_MOD(inputModule, Input, outputModule, Output)` | `void`                     | Connect `Input` of the module to `Output` of `outputModule`.</br>Might throw `SystemLocked`. |
+| `connect<Input, Value>()`</br>`CONNECT_CONST(inputModule, Input, Value)`                           | `void`                     | Hardwire `Input` to constant `Value`.                                                        |
+| `setOutput<Output>(value)`</br>`SET_OUTPUT(value)`                                                 | `void`                     | Set `Output` to `value`.                                                                     |
+| `setOutput("Output", value)`                                                                       | `void`                     | Set output by label to `value`.</br>Might throw `InvalidSignalName`.                         |
+| `getOutput<Output>()`</br>`GET_OUTPUT(Output)`                                                     | `signal_t`                 | Returns the value currently at the given `Output`.                                           |
+| `getOutput("Output")`                                                                              | `signal_t`                 | Get output by label.</br>Might throw `InvalidSignalName`.                                    |
+| `getInput<Input>()`</br>`GET_INPUT(Input)`                                                         | `signal_t`                 | Get value currently on `Input`.                                                              |
+| `getInput("Input")`                                                                                | `signal_t`                 | Get input by label.</br>Might throw `InvalidSignalName`.                                     |
+| `nInputs()`                                                                                        | `size_t`                   | Returns the number of inputs.                                                                |
+| `nOutputs()`                                                                                       | `size_t`                   | Returns the number of outputs.                                                               |
+| `reset()`                                                                                          | `void`                     | Reset the module.                                                                            |
+| `update()`                                                                                         | `void`                     | Update the module.                                                                           |
+| `updateAndCheck()`                                                                                 | `std::vector<int>`         | Updates the module and returns a vector of indices (set by the system) of affected modules.  |
+| `clockRising()`                                                                                    | `void`                     | `(virual)` Perform the actions programmed for the rising edge of the clock.                  |
+| `clockFalling()`                                                                                   | `void`                     | `(virtual)` Perform the actions programmed for the falling edge of the clock.                |
+| `getInputSignalNames()`                                                                            | `std::vector<std::string>` | Returns a vector of input signal names as strings.                                           |
+| `getOutputSignalNames()`                                                                           | `std::vector<std::string>` | Returns a vector of output signal names as strings.                                          |
+| `getModuleIndex()`                                                                                 | `size_t`                   | Returns the index within the system it is a part of.                                         |
+| `name()`                                                                                           | `std::string`              | Return the name of the module (if any).                                                      |
+
 
 
 ### `class VcdScope`
-| Method                          | Return | Description                                                                     |
-|---------------------------------|--------|---------------------------------------------------------------------------------|
-| `monitor<Output1, ...>(module)` | `void` | Monitor one or multiple outputs on `module`. Might throw `SystemLocked`.        |
-| `monitor(module)`               | `void` | Monitor all output signals from the given `module`. Might throw `SystemLocked`. |
-
+| Method                          | Return        | Description                                                                     |
+|---------------------------------|---------------|---------------------------------------------------------------------------------|
+| `monitor<Output1, ...>(module)` | `void`        | Monitor one or multiple outputs on `module`. Might throw `SystemLocked`.        |
+| `monitor(module)`               | `void`        | Monitor all output signals from the given `module`. Might throw `SystemLocked`. |
+| `name()`                        | `std::string` | Returns the name of the scope as a string.                                      |
+|                                 |               |                                                                                 |
 
 

@@ -718,6 +718,7 @@ namespace Rinku {
     }
     
     CommandLine generateCommandLine() {
+      // TODO: add command to view connections? Somehow?
       CommandLine cli;
     
 #define COMMAND [&](CommandLine::CommandArgs const &args)

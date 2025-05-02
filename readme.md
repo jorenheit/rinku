@@ -609,6 +609,7 @@ When the shell is entered, you are greeted by an invitation to type 'help' for h
 | `getOutputSignalNames()`                                                                           | `std::vector<std::string>` | Returns a vector of output signal names as strings.                                          |
 | `getModuleIndex()`                                                                                 | `size_t`                   | Returns the index within the system it is a part of.                                         |
 | `name()`                                                                                           | `std::string`              | Return the name of the module (if any).                                                      |
+| `enableUpdate(bool)`                                                                               | `void`                     | Enable or disable updates.                                                                   |
 
 
 

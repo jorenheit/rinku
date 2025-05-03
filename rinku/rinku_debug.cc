@@ -156,6 +156,29 @@ void printError(Args&& ... args) {
   printMsg("ERROR: ", std::forward<Args>(args)...);
 }
 
+std::unordered_set<std::string> const *completionCandidates = nullptr;
+
+void completionCallback(char const *buf, linenoiseCompletions *lc) {
+  assert(completionCandidates != nullptr);
+
+  static constexpr auto tolower = [](std::string str) -> std::string {
+    for (char &c: str) c = std::tolower(c);
+    return str;
+  };
+
+  std::unordered_set<std::string> const &candidates = *completionCandidates;
+  std::vector<std::string> input = split(tolower(buf), ' ');
+  
+  for (std::string const &cand: candidates) {
+    if (input.back() == tolower(cand.substr(0, input.back().length()))) {
+      std::string line;
+      for (size_t idx = 0; idx != input.size() - 1; ++idx)
+	line += (input[idx] + " ");
+      line += cand;
+      linenoiseAddCompletion(lc, line.c_str());
+    }
+  }
+}
 
 namespace Rinku {
   class Debugger {
@@ -166,6 +189,7 @@ namespace Rinku {
       using CommandFunction = std::function<CommandReturn (CommandArgs const &)>;
   
     private:
+      std::unordered_set<std::string> completionCandidates;
       std::map<std::string, CommandFunction> cmdMap;
       std::map<std::string, std::string> descriptionMap;
       std::map<std::string, std::string> helpMap;
@@ -195,9 +219,14 @@ namespace Rinku {
 	else {
 	  aliasMap[aliasTarget].push_back(cmdName);
 	}
+
+	registerCompletionCandidates(cmdName);
       }
   
     public:
+      CommandLine() {
+	::completionCandidates = &completionCandidates;
+      }
       
       template <typename Callable>
       void add(std::initializer_list<std::string> const &aliases, Callable &&fun, 
@@ -216,7 +245,17 @@ namespace Rinku {
 	}
 	return (cmdMap.find(args[0])->second)(args);
       }
-  
+
+      void registerCompletionCandidates(std::string const &str) {
+	completionCandidates.insert(str);
+      }
+
+      void registerCompletionCandidates(std::vector<std::string> const &vec) {
+	for (std::string const &str: vec) {
+	  registerCompletionCandidates(str);
+	}
+      }
+      
       void printHelp() {
 	std::vector<std::string> commandStrings;
 	std::vector<std::string> descriptions;
@@ -394,6 +433,25 @@ namespace Rinku {
 
       // Create commandline object
       CommandLine cli = generateCommandLine();
+
+      // Setup completion callback
+      linenoiseSetCompletionCallback(completionCallback);
+      
+      // Add completion targets
+      for (std::string const &modName: _sys.namedModules()) {
+	cli.registerCompletionCandidates(modName);
+	auto optModule = tryGetModulePointer(modName);
+	assert(optModule.has_value());
+
+	cli.registerCompletionCandidates(optModule.value()->getInputSignalNames());
+	cli.registerCompletionCandidates(optModule.value()->getOutputSignalNames());
+      }
+      std::vector<std::string> const keywords = {
+	"in", "out", "bin", "dec", "hex",
+	"rising", "falling", "high", "low", "value"
+      };
+
+      cli.registerCompletionCandidates(keywords);
 
       // Start interactive session -> return true/false to indicate if the images should be writen to disk
       std::cout << "<Rinku Debugger> Type \"help\" for a list of available commands.\n\n";

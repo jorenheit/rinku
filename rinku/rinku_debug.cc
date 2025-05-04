@@ -936,7 +936,13 @@ namespace Rinku {
 	  
 	  step(n);
 	},
-	"Advance the system by a full cycle."
+	"Advance the system by one or more full cycles.",
+	wrapString("Syntax: step\n"
+		   "        step n\n"
+		   "\n"
+		   "Advances the system by 'n' full cycles when a value for 'n' "
+		   "was provided or a single full cycle otherwise.",
+		   LINE_WIDTH, HELP_INDENT)
 	);
 
       cli.add({"half", "s"}, COMMAND {
@@ -957,7 +963,13 @@ namespace Rinku {
 	  
 	  halfStep(n);
 	},
-	"Advance the system by a half cycle."
+	"Advance the system by a half cycle.",
+	wrapString("Syntax: step\n"
+		   "        step n\n"
+		   "\n"
+		   "Advances the system by 'n' half cycles when a value for 'n' "
+		   "was provided or a single half cycle otherwise.",
+		   LINE_WIDTH, HELP_INDENT)
 	);
       
       cli.add({"reset", "r"}, COMMAND {
@@ -991,8 +1003,8 @@ namespace Rinku {
 	  }
 	},
 	"Set the signal number-format.",
-	wrapString("  Syntax: format\n"
-		   "          format 'bin/dec/hex'\n"
+	wrapString("Syntax: format\n"
+		   "        format 'bin/dec/hex'\n"
 		   "\n"
 		   "By default, signal values will be displayed in decimal format. This can be changed "
 		   "to binary or hexadecimal using this command. Note that When poking values or setting "
@@ -1047,8 +1059,7 @@ namespace Rinku {
 	},
 	"Change the output of a module.",
 	wrapString(
-		   "Change the output of a module.\n"
-		   "  Syntax: poke [module] [signal] [value]\n"
+		   "Syntax: poke [module] [signal] [value]\n"
 		   "\n"
 		   "When the system is paused because the HLT signal was active or a breakpoint "
 		   "was hit (or even before it was started), the outputs of a module can be changed "

@@ -416,7 +416,7 @@ namespace Rinku {
       }
     }; // class Breakpoint
 
-    class BreakpointCombo: public BreakpointBase {
+    class CombinedBreakpoint: public BreakpointBase {
     public:
       enum Operation {
 	And,
@@ -1034,7 +1034,7 @@ namespace Rinku {
 		   "\n\n"
 		   "Finally, one can combine two breakpoints into a new breakpoint by one of the "
 		   "following logical operators: 'and', 'nand', 'or', 'nor', 'xor', 'xnor'. The resulting "
-		   "breakpoint will replace the two breakpoints that were combined."
+		   "breakpoint will replace the two breakpoints that were combined.",
                    LINE_WIDTH, HELP_INDENT)
 	);
 

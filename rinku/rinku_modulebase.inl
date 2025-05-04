@@ -1,101 +1,53 @@
-#ifndef RINKU_MODULEBASE_H
-#define RINKU_MODULEBASE_H
 
-namespace Impl {
-  class ModuleBase {
-    friend class Debugger;
+inline void ModuleBase::update() {
+  this->update(GuaranteeToken{&_guaranteed});
+}
+
+inline void ModuleBase::setModuleIndex(int idx) {
+  _index = idx;
+}
+
+inline int ModuleBase::getModuleIndex() const {
       
-    bool _locked = false;
-    bool _setOutputAllowed = true;
-    bool _guaranteed = false;
-    bool _updateEnabled = true;
-    int _index = -1;
-    std::string _name = "[UNNAMED]";
+  return _index;
+}
+
+inline void ModuleBase::setName(std::string const &name) {
+  _name = name;
+}
+
+inline std::string const &ModuleBase::name() const {
+  return _name;
+}
+
+inline void ModuleBase::enableUpdate(bool val) {
+  _updateEnabled = val;
+}
       
-  public:
-    class GuaranteeToken {
-      friend class ModuleBase;
-      bool *value;
-      GuaranteeToken(bool *val):
-	value(val)
-      {}
-    public:
-      void set() {
-	assert(value && "value can't be null");
-	*value = true;
-      }
-    };
-      
-    virtual ~ModuleBase() = default;
-    virtual void clockRising() {}
-    virtual void clockFalling() {}
-    virtual void update(GuaranteeToken) {}
-    virtual void reset() {}
-    virtual std::vector<int> updateAndCheck() = 0;
-    virtual size_t nInputs() const = 0;
-    virtual size_t nOutputs() const = 0;
-    virtual signal_t getInput(std::string const &) const = 0;
-    virtual signal_t getInput(size_t) const = 0;
-    virtual signal_t getOutput(std::string const &) const = 0;
-    virtual signal_t getOutput(size_t) const = 0;
-    virtual void setOutput(std::string const &, signal_t) = 0;
-    virtual void setOutput(size_t, signal_t) = 0;
-    virtual std::vector<std::string> getInputSignalNames() const = 0;
-    virtual std::vector<std::string> getOutputSignalNames() const = 0;
+inline void ModuleBase::lock() {
+  _locked = true;
+}
 
-    void update() {
-      this->update(GuaranteeToken{&_guaranteed});
-    }
+inline bool ModuleBase::locked() const {
+  return _locked;
+}
 
-    void setModuleIndex(int idx) {
-      _index = idx;
-    }
+inline void ModuleBase::allowSetOutput(bool value) {
+  _setOutputAllowed = value;
+}
 
-    int getModuleIndex() const {
-      return _index;
-    }
+inline bool ModuleBase::setOutputAllowed() const {
+  return _setOutputAllowed;
+}
 
-    void setName(std::string const &name) {
-      _name = name;
-    }
+inline void ModuleBase::resetGuaranteed() {
+  _guaranteed = false;
+}
 
-    std::string const &name() const {
-      return _name;
-    }
+inline bool ModuleBase::guaranteed() const {
+  return _guaranteed;
+}
 
-    void enableUpdate(bool val) {
-      _updateEnabled = val;
-    }
-      
-    void lock() {
-      _locked = true;
-    }
-
-    bool locked() const {
-      return _locked;
-    }
-
-    void allowSetOutput(bool value) {
-      _setOutputAllowed = value;
-    }
-
-    bool setOutputAllowed() const {
-      return _setOutputAllowed;
-    }
-
-    void resetGuaranteed() {
-      _guaranteed = false;
-    }
-
-    bool guaranteed() const {
-      return _guaranteed;
-    }
-
-    bool updateEnabled() const {
-      return _updateEnabled;
-    }
-  }; // class ModuleBase
-    
-} // namespace Impl
-
-#endif // RINKU_MODULEBASE_H
+inline bool ModuleBase::updateEnabled() const {
+  return _updateEnabled;
+}

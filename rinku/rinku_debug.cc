@@ -2,6 +2,7 @@
 #include <map>
 #include <optional>
 #include <sstream>
+#include <memory>
 
 #include "linenoise/linenoise.h"
 
@@ -167,10 +168,10 @@ void completionCallback(char const *buf, linenoiseCompletions *lc) {
   };
 
   std::unordered_set<std::string> const &candidates = *completionCandidates;
-  std::vector<std::string> input = split(tolower(buf), ' ');
+  std::vector<std::string> input = split(buf, ' ');
   
   for (std::string const &cand: candidates) {
-    if (input.back() == tolower(cand.substr(0, input.back().length()))) {
+    if (tolower(input.back()) == tolower(cand.substr(0, input.back().length()))) {
       std::string line;
       for (size_t idx = 0; idx != input.size() - 1; ++idx)
 	line += (input[idx] + " ");
@@ -339,8 +340,23 @@ namespace Rinku {
     std::string eventString(signal_t value) {
       return "equals " + std::to_string(value) + " (base 10)";
     }
+
+    class BreakpointBase {
+      std::string _label;
+    public:
+      BreakpointBase(std::string const &label):
+	_label(label)
+      {}
+
+      std::string const &label() const {
+	return _label;
+      }
+
+      virtual bool update() = 0;
+      
+    }; // class BreakpointBase
     
-    class Breakpoint {
+    class Breakpoint: public BreakpointBase {
     public:
 
     private:
@@ -349,19 +365,18 @@ namespace Rinku {
       Event _trigger;
       std::vector<signal_t> _currentValues;
       std::vector<Getter> _getters;
-      std::string _label;
       signal_t _value = 0;
 
     public:
       Breakpoint(signal_t value, std::string const &label):
+	BreakpointBase(label),
 	_trigger(Event::Equals),
-	_label(label),
 	_value(value)
       {}
       
       Breakpoint(Event trigger, std::string const &label):
-	_trigger(trigger),
-	_label(label)
+	BreakpointBase(label),
+	_trigger(trigger)
       {}
 
       template <typename Callable>
@@ -370,11 +385,7 @@ namespace Rinku {
 	_currentValues.push_back(get());
       }
       
-      std::string const &label() const {
-	return _label;
-      }
-
-      bool update() {
+      virtual bool update() override {
 	std::vector<signal_t> newValues;
 	for (auto const &get: _getters) {
 	  newValues.push_back(get());
@@ -403,10 +414,85 @@ namespace Rinku {
 	default: UNREACHABLE__;
 	}
       }
-    };
+    }; // class Breakpoint
+
+    class BreakpointCombo: public BreakpointBase {
+    public:
+      enum Operation {
+	And,
+	Nand,
+	Or,
+	Nor,
+	Xor,
+	Xnor,
+	N_OPERATIONS
+      };
+
+    private:
+      std::shared_ptr<BreakpointBase> _br1;
+      std::shared_ptr<BreakpointBase> _br2;
+      Operation _op;
+      
+      static constexpr std::string operationStrings[N_OPERATIONS] = {
+	"and", "nand", "or", "nor", "xor"
+      };
+
+      std::string constructLabel(std::string const &br1Label, std::string const &br2Label, Operation op) {
+	auto const applyIndentation = [](std::string const &str) -> std::string {
+	  std::string result = "  ";
+	  for (char c: str) {
+	    if (c != '\n') result += c;
+	    else result += "\n  ";
+	  }
+	  return result;
+	};
+	
+	std::string result = "Combined breakpoint: " + operationStrings[op] + "\n";
+	result += applyIndentation(br1Label) + "\n";
+	result += applyIndentation(br2Label);
+	return result;
+      }
+      
+    public:
+      CombinedBreakpoint(std::shared_ptr<BreakpointBase> br1,
+			 std::shared_ptr<BreakpointBase> br2,
+			 Operation op):
+	BreakpointBase(constructLabel(br1->label(), br2->label(), op)),
+	_br1(br1),
+	_br2(br2),
+	_op(op)
+      {}
+
+      static std::string operationToString(Operation op) {
+	return operationStrings[op];
+      }
+
+      static Operation stringToOperation(std::string const &str) {
+	for (size_t idx = 0; idx != N_OPERATIONS; ++idx) {
+	  if (str == operationStrings[idx]) {
+	    return static_cast<Operation>(idx);
+	  }
+	}
+	return N_OPERATIONS;
+      }
+      
+      virtual bool update() override {
+	bool br1Triggered = _br1->update();
+	bool br2Triggered = _br2->update();
+	switch (_op) {
+	case And:  return br1Triggered && br2Triggered;
+	case Nand: return !(br1Triggered && br2Triggered);
+	case Or:   return br1Triggered || br2Triggered;
+	case Nor:  return !(br1Triggered || br2Triggered);
+	case Xor:  return br1Triggered ^ br2Triggered;
+	case Xnor: return !(br1Triggered ^ br2Triggered);
+	default: UNREACHABLE__;
+	}
+      }
+    }; // class CombinedBreakpoint
     
     System &_sys;
-    std::vector<Breakpoint> _breakpoints;
+    std::vector<std::shared_ptr<BreakpointBase>> _breakpoints;
     size_t _tick = 0;
     NumberFormat _fmt = NumberFormat::Decimal;
     std::vector<Impl::ModuleBase*> _enableUpdateQueue;;
@@ -489,10 +575,20 @@ namespace Rinku {
 	default: UNREACHABLE__;
 	};
       };
+
+      auto const applyIndentation = [](std::string const &str, size_t n) -> std::string {
+	std::string result;
+	for (char c: str) {
+	  if (c != '\n') result += c;
+	  else result += "\n" + std::string(n, ' ');
+	}
+	return result;
+      };
       
       std::cout << '\n' << header << '\n';
       for (size_t idx = 0; idx != vec.size(); ++idx) {
-	std::cout << "  " << getBullet(idx) << " " << vec[idx] << '\n';
+	std::string pre = "  " + getBullet(idx) + " ";
+	std::cout << pre << applyIndentation(vec[idx], pre.size()) << '\n';
       }
       if (vec.size() == 0)
 	std::cout << "  -\n";
@@ -585,8 +681,8 @@ namespace Rinku {
 
     void listBreakpoints() {
       std::vector<std::string> brVec;
-      for (Breakpoint const &br: _breakpoints) {
-	brVec.push_back(br.label());
+      for (auto const &br: _breakpoints) {
+	brVec.push_back(br->label());
       }
       listVector(Numbered, "Active breakpoints: ", brVec);
     }
@@ -595,12 +691,12 @@ namespace Rinku {
       auto optModule = tryGetModulePointer(modName);
       if (!optModule.has_value()) return false;
       
-      // Make new breakpoint
+      // Construct label and check if duplicate
       std::ostringstream oss;
       oss << modName << ": any " << signalTypeString(sigType) << " -> " << eventString(event);
       std::string newLabel = oss.str();
-      for (Breakpoint const &br: _breakpoints) {
-	if (br.label() == newLabel) {
+      for (auto const &br: _breakpoints) {
+	if (br->label() == newLabel) {
 	  return true;
 	}
       }
@@ -614,7 +710,8 @@ namespace Rinku {
 	  return (sigType == Input) ? mod->getInput(signal) : mod->getOutput(signal);
 	});
       }
-      _breakpoints.push_back(br);
+
+      _breakpoints.push_back(std::make_shared<Breakpoint>(br));
       return true;
     }
 
@@ -634,8 +731,8 @@ namespace Rinku {
       std::ostringstream oss;
       oss << modName << ": signal \"" << sigName << "\" -> " << eventString(trigger);
       Breakpoint br(trigger, oss.str());
-      for (Breakpoint const &current: _breakpoints) {
-	if (br.label() == current.label())
+      for (auto const &current: _breakpoints) {
+	if (br.label() == current->label())
 	  return true;
       }
 
@@ -643,40 +740,73 @@ namespace Rinku {
 	signal_t value = (sigType == Input) ? mod->getInput(sigName) : mod->getOutput(sigName);
 	return value;
       });
-      _breakpoints.push_back(br);
+      _breakpoints.push_back(std::make_shared<Breakpoint>(br));
       return true;
     }
 
-    bool deleteBreakpoint(size_t idx = -1) {
-      if (idx == -1UL) {
-	_breakpoints.clear();
-	return true;
+    bool setCombinedBreakpoint(size_t idx1, size_t idx2, CombinedBreakpoint::Operation op) {
+      if (idx1 >= _breakpoints.size()) {
+	printError("First breakpoint index out of range.");
+	return false;
       }
-      
-      if (idx >= _breakpoints.size()) {
-	printError("Breakpoint index out of range.\nType \"break\" to see the list of currently active breakpoints.");
+      if (idx2 >= _breakpoints.size()) {
+	printError("Second breakpoint index out of range.");
 	return false;
       }
 
-      _breakpoints.erase(_breakpoints.begin() + idx);
+      _breakpoints.push_back(std::make_shared<CombinedBreakpoint>(_breakpoints[idx1], _breakpoints[idx2], op));
+      deleteBreakpoints({idx1, idx2});
       return true;
+    }
+    
+    void deleteBreakpoints(std::vector<size_t> const &indices) {
+      // Check if there's a wildcard
+      std::unordered_set<size_t> toDelete(indices.begin(), indices.end());
+      if (toDelete.contains(-1UL)) {
+	  _breakpoints.clear();
+	  return;
+      }
+
+      // Check if indices are in bounds
+      for (size_t idx: indices) {
+	if (idx >= _breakpoints.size()) {
+	  printWarning("Ignoring out of range index (", idx, ").\n",
+		       "Type \"break\" to see the list of currently active breakpoints.");
+	}
+      }
+
+      // Construct a new vector of breakpoints
+      std::vector<std::shared_ptr<BreakpointBase>> newBreakpoints;
+      for (size_t idx = 0; idx != _breakpoints.size(); ++idx) {
+	if (!toDelete.contains(idx)) {
+	  newBreakpoints.push_back(_breakpoints[idx]);
+	  continue;
+	}
+      }
+
+      _breakpoints.swap(newBreakpoints);
     }
 
     void run() {
-      bool breakpointTriggered = false;
-      while (!breakpointTriggered) {
+      std::vector<std::string> triggered;
+      while (triggered.empty()) {
 	++_tick;
 	bool running = _sys.halfStep();
 	flushEnableUpdateQueue();
 	if (!running) break;
-	    
-	for (Breakpoint &br: _breakpoints) {
-	  if (br.update())  breakpointTriggered = true;
+
+	for (auto &br: _breakpoints) {
+	  if (br->update()) {
+	    triggered.push_back(br->label());
+	  }
 	}
+	
+	if (!triggered.empty())
+	  break;
       }
 
-      if (breakpointTriggered) {
-	printMsg("\nBreakpoint triggered @ ", where());
+      if (!triggered.empty()) {
+	listVector(Bullets, "Breakpoint(s) triggered @ " + where(), triggered);
       }
     }
 
@@ -817,6 +947,28 @@ namespace Rinku {
 	  if (args.size() == 1) {
 	    listBreakpoints();
 	  }
+	  else if (args[1] == "combine") {
+	    if (args.size() != 5) {
+	      printError(args[0], ": expects 3 arguments after 'combine'");
+	      cli.printHelp(args[0]);
+	      return;
+	    }
+	    
+	    size_t index1, index2;
+	    if (!stringToInt(args[2], index1) || !stringToInt(args[3], index2)) {
+	      printError(args[0], ": expected pair of integer indices after 'combine'.");
+	      cli.printHelp(args[0]);
+	      return;
+	    }
+
+	    CombinedBreakpoint::Operation op = CombinedBreakpoint::stringToOperation(args[4]);
+	    if (op == CombinedBreakpoint::N_OPERATIONS) {
+	      printError(args[0], ": invalid logical operation '", args[4], "'.\n");
+	      cli.printHelp(args[0]);
+	      return;
+	    }
+	    setCombinedBreakpoint(index1, index2, op);
+	  }
 	  else if (args.size() == 2) {
 	    if (!setBreakpointAny(args[1], SignalType::Input, Event::Change)) return;
 	    if (!setBreakpointAny(args[1], SignalType::Output, Event::Change)) return;
@@ -850,6 +1002,10 @@ namespace Rinku {
 	      }
 	      setBreakpoint(args[1], args[2], value);
 	    }
+	    else {
+	      printError(args[0], ": invalid arguments.");
+	      cli.printHelp(args[0]);
+	    }
 	  }
 	  else {
 	    printError(args[0], ": too many arguments.");
@@ -862,6 +1018,7 @@ namespace Rinku {
                    "        break [module] 'in'/'out'\n"
                    "        break [module] [signal] 'high'/'low'/'rising'/'falling'/'change'\n"
                    "        break [module] [signal] 'value' [value]\n"
+		   "        break 'combine' [index1] [index2] [logic operation]\n"
                    "\n\n"
                    "Without any arguments, 'break' will list the currently active breakpoints."
                    "If only a module label is passed, the breakpoint will be  activated when any of "
@@ -871,31 +1028,34 @@ namespace Rinku {
                    "Breakpoints can also be set to specific signal events by passing the signal "
                    "name followed by one of 'high', 'low', 'rising', 'falling' and 'change'."
                    "\n\n"
-                   "Finally, a breakpoint can be set to a signal having a specific value, by passing "
+                   "A breakpoint can be set to a signal having a specific value, by passing "
                    "'value' followed by a numerical value. This value is interpreted in the base "
-                   "currently set by 'format' (see 'help format').",
+                   "currently set by 'format' (see 'help format')."
+		   "\n\n"
+		   "Finally, one can combine two breakpoints into a new breakpoint by one of the "
+		   "following logical operators: 'and', 'nand', 'or', 'nor', 'xor', 'xnor'. The resulting "
+		   "breakpoint will replace the two breakpoints that were combined."
                    LINE_WIDTH, HELP_INDENT)
 	);
 
       cli.add({"delete", "d"}, COMMAND {
-	  if (args.size() != 2) {
-	    printError(args[0], " expects exactly 1 argument.");
-	    cli.printHelp(args[0]);
-	    return;
-	  }
-
-	  if (args[1] == "*") {
-	    deleteBreakpoint(); // delete all
-	    return;
+	  std::vector<size_t> toDelete;
+	  for (size_t idx = 1; idx != args.size(); ++idx) {
+	    if (args[idx] == "*") {
+	      toDelete.push_back(-1);
+	      continue;
+	    }
+	      
+	    int index;
+	    if (!stringToInt(args[idx], index) || index < 0) {
+	      printError(args[0], " expects a list of indices (integers) of the breakpoint you wish to delete.");
+	      cli.printHelp(args[0]);
+	      return;
+	    }
+	    toDelete.push_back(index);
 	  }
 	  
-	  int index;
-	  if (!stringToInt(args[1], index) || index < 0) {
-	    printError(args[0], " expects the index of the breakpoint you wish to delete.");
-	    cli.printHelp(args[0]);
-	    return;
-	  }
-	  deleteBreakpoint(index);
+	  deleteBreakpoints(toDelete);
 	},
 	"Delete a breakpoint.",
 	wrapString("Syntax: delete [index]\n"

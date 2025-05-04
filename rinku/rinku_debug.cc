@@ -431,27 +431,12 @@ namespace Rinku {
 	return {input, true};
       };
 
-      // Create commandline object
-      CommandLine cli = generateCommandLine();
-
       // Setup completion callback
       linenoiseSetCompletionCallback(completionCallback);
+
+      // Create commandline object
+      CommandLine cli = generateCommandLine();
       
-      // Add completion targets
-      for (std::string const &modName: _sys.namedModules()) {
-	cli.registerCompletionCandidates(modName);
-	auto optModule = tryGetModulePointer(modName);
-	assert(optModule.has_value());
-
-	cli.registerCompletionCandidates(optModule.value()->getInputSignalNames());
-	cli.registerCompletionCandidates(optModule.value()->getOutputSignalNames());
-      }
-      std::vector<std::string> const keywords = {
-	"in", "out", "bin", "dec", "hex",
-	"rising", "falling", "high", "low", "value"
-      };
-
-      cli.registerCompletionCandidates(keywords);
 
       // Start interactive session -> return true/false to indicate if the images should be writen to disk
       std::cout << "<Rinku Debugger> Type \"help\" for a list of available commands.\n\n";
@@ -478,7 +463,7 @@ namespace Rinku {
 	printError(err.what());
       }
       catch (Error::Exception const &err) {
-	printError("Unexpected error: " + err.what());
+	printError("Unexpected error: ", err.what());
       }
       return {};
     }
@@ -577,7 +562,6 @@ namespace Rinku {
       }
       return sigType;
     }
-    
     
     void listModules() {
       listVector(Bullets, "Available modules:", _sys.namedModules());
@@ -776,7 +760,7 @@ namespace Rinku {
     }
     
     CommandLine generateCommandLine() {
-      // TODO: add command to view connections? Somehow?
+
       CommandLine cli;
     
 #define COMMAND [&](CommandLine::CommandArgs const &args)
@@ -1075,10 +1059,24 @@ namespace Rinku {
 		   LINE_WIDTH, HELP_INDENT)
 	);
       
-      
-      
 #undef COMMAND
-    
+
+      // Add completion targets
+      for (std::string const &modName: _sys.namedModules()) {
+	cli.registerCompletionCandidates(modName);
+	auto optModule = tryGetModulePointer(modName);
+	assert(optModule.has_value());
+
+	cli.registerCompletionCandidates(optModule.value()->getInputSignalNames());
+	cli.registerCompletionCandidates(optModule.value()->getOutputSignalNames());
+      }
+      std::vector<std::string> const keywords = {
+	"in", "out", "bin", "dec", "hex",
+	"rising", "falling", "high", "low", "value"
+      };
+
+      cli.registerCompletionCandidates(keywords);
+      
       return cli;
     }
   }; // class Debugger

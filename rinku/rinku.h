@@ -46,10 +46,99 @@ namespace Rinku {
     
 #include "rinku_error.inl"
   }
-  
-#include "rinku_impl.inl"
-#include "rinku_modulebase.inl"
 
+  namespace Impl {
+    
+    template <size_t N, typename Base_, bool isInput>
+    struct IO_;
+    
+    template <size_t N, typename Base_>
+    struct Input_;
+    
+    template <size_t N, typename Base_, bool Inverted = false>
+    struct Output_;
+    
+    template <typename ... Args>
+    class Signals_ {
+    public:
+      static constexpr size_t N = sizeof ... (Args);
+  
+      template <typename S, size_t I = 0>
+      static consteval size_t index_of();
+
+      static consteval bool is_input_list();
+      static consteval bool is_output_list();
+      
+      static_assert(is_input_list() || is_output_list(),
+		    "Signal list must contain only inputs or outputs.");
+
+      static char const * const *names();
+      static signal_t const *masks();
+      static size_t const *widths();
+    }; // class Signal_
+
+#include "rinku_signals.inl" 
+
+    class ModuleBase {
+      friend class Debugger;
+      
+      bool _locked = false;
+      bool _setOutputAllowed = true;
+      bool _guaranteed = false;
+      bool _updateEnabled = true;
+      size_t _index = -1;
+      std::string _name = "[UNNAMED]";
+      
+    public:
+      class GuaranteeToken {
+	friend class ModuleBase;
+	bool *value;
+	GuaranteeToken(bool *val):
+	  value(val)
+	{}
+      public:
+	void set() {
+	  assert(value && "value can't be null");
+	  *value = true;
+	}
+      };
+      
+      virtual ~ModuleBase() = default;
+      virtual void clockRising() {}
+      virtual void clockFalling() {}
+      virtual void update(GuaranteeToken) {}
+      virtual void reset() {}
+      virtual std::vector<int> updateAndCheck() = 0;
+      virtual size_t nInputs() const = 0;
+      virtual size_t nOutputs() const = 0;
+      virtual signal_t getInput(std::string const &) const = 0;
+      virtual signal_t getInput(size_t) const = 0;
+      virtual signal_t getOutput(std::string const &) const = 0;
+      virtual signal_t getOutput(size_t) const = 0;
+      virtual void setOutput(std::string const &, signal_t) = 0;
+      virtual void setOutput(size_t, signal_t) = 0;
+      virtual std::vector<std::string> getInputSignalNames() const = 0;
+      virtual std::vector<std::string> getOutputSignalNames() const = 0;
+
+      void update();
+      void setModuleIndex(int idx);
+      int getModuleIndex() const;
+      void setName(std::string const &name);
+      std::string const &name() const;
+      void enableUpdate(bool val);      
+      void lock();
+      bool locked() const;
+      void allowSetOutput(bool value);
+      bool setOutputAllowed() const;
+      void resetGuaranteed();
+      bool guaranteed() const;
+      bool updateEnabled() const;
+    }; // class ModuleBase
+
+    
+#include "rinku_modulebase.inl"
+  } // namespace Impl
+  
   template <typename Output>
   struct Not: Impl::Output_<Output::Width, typename Output::Base, !Output::ActiveLow> {
     static_assert(Output::IsOutput, "Cannot negate input signals.");
@@ -68,16 +157,16 @@ namespace Rinku {
     
   public:
     using Inputs = std::conditional_t<
-      SignalList1::is_input_list() || SignalList2::is_input_list(),
-      std::conditional_t<SignalList1::is_input_list(), SignalList1, SignalList2>,
-      Impl::Signals_<>
+    SignalList1::is_input_list() || SignalList2::is_input_list(),
+    std::conditional_t<SignalList1::is_input_list(), SignalList1, SignalList2>,
+    Impl::Signals_<>
     >;
   
     using Outputs = std::conditional_t<
       SignalList1::is_output_list() || SignalList2::is_output_list(),
       std::conditional_t<SignalList1::is_output_list(), SignalList1, SignalList2>,
       Impl::Signals_<>
-    >;
+      >;
 
     virtual size_t nInputs()  const override final { return Inputs::N; }
     virtual size_t nOutputs() const override final { return Outputs::N; }

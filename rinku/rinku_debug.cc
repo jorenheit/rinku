@@ -1,302 +1,20 @@
-#include <functional>
-#include <map>
 #include <optional>
 #include <sstream>
 #include <memory>
-
-#include "linenoise/linenoise.h"
+#include <vector>
+#include <iomanip>
+#include <iostream>
+#include <cmath>
 
 #define RINKU_ENABLE_DEBUGGER
 #include "rinku.h"
-
-std::string wrapString(std::string const &str, size_t lineWidth, size_t indent = 0) {
-  enum State {
-    PARSING_WORD,
-    PARSING_WHITESPACE,
-  };
-
-  std::string newLine = "\n" + std::string(indent, ' ');
-  std::string result(indent, ' ');
-  size_t count = indent;
-  std::string currentWord;
-  State state = PARSING_WHITESPACE;
-  
-  for (char c: str) {
-    switch (state) {
-    case PARSING_WHITESPACE: {
-      if (c == '\n') {
-	result += newLine;
-	count = indent;
-      }
-      else if (std::isspace(c)) {
-	if (count + 1 > lineWidth) {
-	  result += newLine;
-	  count = indent;
-	}
-	result += c;
-	++count;
-      }
-      else {
-	currentWord.clear();
-	currentWord += c;
-	state = PARSING_WORD;
-      }
-      break;
-    }
-    case PARSING_WORD: {
-      if (!std::isspace(c)) {
-	currentWord += c;
-      }
-      else {
-	if (count + currentWord.length() > lineWidth) {
-	  result += newLine;
-	  count = indent;
-	}
-	result += currentWord;
-
-	if (c == '\n') {
-	  result += newLine;
-	  count = indent;
-	}
-	else {
-	  result += c;
-	  count += currentWord.length() + 1;
-	}
-	state = PARSING_WHITESPACE;
-      }
-      break;
-    }
-    }
-  }
-  
-  if (not currentWord.empty()) {
-    if (count + currentWord.length() > lineWidth) {
-      result += newLine;
-    }
-    result += currentWord;
-  }
-
-  return result;
-}
-
-template <typename Int>
-bool stringToInt(std::string const &str, Int &result, int base = 10) {
-  size_t pos;
-  try {
-    result = std::stoi(str, &pos, base); }
-  catch (...) {
-    return false;
-  }
-  return (pos == str.size());
-}
-
-void trim(std::string &str) {
-  size_t idx = 0;
-  while (idx < str.length() && std::isspace(str[idx])) { ++idx; }
-  if (idx == str.length()) {
-    str.clear();
-    return;
-  }
-        
-  size_t const start = idx;
-  idx = str.length() - 1;
-  while (idx >= 0 && std::isspace(str[idx])) { --idx; }
-  size_t const stop = idx;
-        
-  str = str.substr(start, stop - start + 1);
-}
-
-
-std::vector<std::string> split(std::string const &str, std::string const &token, bool allowEmpty = false) {
-  std::vector<std::string> result;
-
-  size_t prev = 0;
-  size_t current = 0;
-  while ((current = str.find(token, prev)) != std::string::npos) {
-    std::string part = str.substr(prev, current - prev);
-    trim(part);
-    if (allowEmpty || !part.empty()) result.push_back(part);
-    prev = current + token.length();
-  }
-  std::string last = str.substr(prev);
-  trim(last);
-  if (allowEmpty || !last.empty()) result.push_back(last);
-
-  return result;
-}
-
-std::vector<std::string> split(std::string const &str, char const c, bool allowEmpty = false) {
-  return split(str, std::string{c}, allowEmpty);
-}
-
-std::string toBinaryString(size_t num, size_t minBits = 0) {
-  std::string binary = std::bitset<64>(num).to_string();
-  size_t firstOne = binary.find('1');
-  std::string trimmed = (firstOne == std::string::npos) ? "0" : binary.substr(firstOne);
-    
-  if (trimmed.size() < minBits) {
-    trimmed = std::string(minBits - trimmed.size(), '0') + trimmed;
-  }
-    
-  return trimmed;
-}
-
-
-template <typename ... Args>
-void printMsg(Args&& ... args) {
-  (std::cout << ... << std::forward<Args>(args)) << std::endl;
-}
-      
-template <typename ... Args>
-void printWarning(Args&& ... args) {
-  printMsg("WARNING: ", std::forward<Args>(args)...);
-}
-
-template <typename ... Args>
-void printError(Args&& ... args) {
-  printMsg("ERROR: ", std::forward<Args>(args)...);
-}
-
-std::unordered_set<std::string> const *completionCandidates = nullptr;
-
-void completionCallback(char const *buf, linenoiseCompletions *lc) {
-  assert(completionCandidates != nullptr);
-
-  static constexpr auto tolower = [](std::string str) -> std::string {
-    for (char &c: str) c = std::tolower(c);
-    return str;
-  };
-
-  std::unordered_set<std::string> const &candidates = *completionCandidates;
-  std::vector<std::string> input = split(buf, ' ');
-  
-  for (std::string const &cand: candidates) {
-    if (tolower(input.back()) == tolower(cand.substr(0, input.back().length()))) {
-      std::string line;
-      for (size_t idx = 0; idx != input.size() - 1; ++idx)
-	line += (input[idx] + " ");
-      line += cand;
-      linenoiseAddCompletion(lc, line.c_str());
-    }
-  }
-}
+#include "rinku_debug_utilities.h"
+#include "rinku_debug_breakpoints.h"
+#include "simpshell.h"
 
 namespace Rinku {
+
   class Debugger {
-    class CommandLine {
-    public: 
-      using CommandReturn = bool;
-      using CommandArgs = std::vector<std::string>;
-      using CommandFunction = std::function<CommandReturn (CommandArgs const &)>;
-  
-    private:
-      std::unordered_set<std::string> completionCandidates;
-      std::map<std::string, CommandFunction> cmdMap;
-      std::map<std::string, std::string> descriptionMap;
-      std::map<std::string, std::string> helpMap;
-      std::map<std::string, std::vector<std::string>> aliasMap;
-
-      template <typename Callable, typename Ret = std::invoke_result_t<Callable, CommandArgs>>
-      void add(std::string const &cmdName, Callable&& fun, std::string const &description, 
-	       std::string const &help, std::string const &aliasTarget) {
-      
-	assert(!cmdMap.contains(cmdName) && "Duplicate command");
-      
-	cmdMap.insert({cmdName, [=](CommandArgs const &args) -> CommandReturn {
-	  if constexpr (std::is_same_v<Ret, void>) {
-	    fun(args);
-	    return false;
-	  }
-	  else if constexpr (std::is_same_v<Ret, bool>) {
-	    return fun(args);
-	  }
-	  UNREACHABLE__;
-	}});
-    
-	helpMap.insert({cmdName, help});
-	if (cmdName == aliasTarget) {
-	  descriptionMap.insert({cmdName, description});
-	}
-	else {
-	  aliasMap[aliasTarget].push_back(cmdName);
-	}
-
-	registerCompletionCandidates(cmdName);
-      }
-  
-    public:
-      CommandLine() {
-	::completionCandidates = &completionCandidates;
-      }
-      
-      template <typename Callable>
-      void add(std::initializer_list<std::string> const &aliases, Callable &&fun, 
-	       std::string const &description, std::string const &help = "") {
-	std::vector aliasVec = aliases;
-	for (std::string const &cmdName: aliasVec) {
-	  add(cmdName, std::forward<Callable>(fun), description, help, aliasVec[0]);
-	}
-      }
-  
-      CommandReturn exec(CommandArgs const &args) {
-	assert(args.size() > 0 && "empty arg list");
-	if (!cmdMap.contains(args[0])) {
-	  printError(args[0], ": Unknown command.");
-	  return false;
-	}
-	return (cmdMap.find(args[0])->second)(args);
-      }
-
-      void registerCompletionCandidates(std::string const &str) {
-	completionCandidates.insert(str);
-      }
-
-      void registerCompletionCandidates(std::vector<std::string> const &vec) {
-	for (std::string const &str: vec) {
-	  registerCompletionCandidates(str);
-	}
-      }
-      
-      void printHelp() {
-	std::vector<std::string> commandStrings;
-	std::vector<std::string> descriptions;
-	size_t maxLength = 0;
-	for (auto const &[cmd, description]: descriptionMap) {
-	  std::string str = cmd;
-	  for (auto const &alias: aliasMap[cmd])
-	    str += "|" + alias;
-      
-	  if (str.length() > maxLength) maxLength = str.length();
-	  commandStrings.push_back(str);
-	  descriptions.push_back(description);
-	}
-	assert(commandStrings.size() == descriptions.size());
-    
-	std::cout << "\nAvailable commands:\n";
-	for (size_t idx = 0; idx != commandStrings.size(); ++idx) {
-	  std::cout << std::setw(maxLength + 2) << std::setfill(' ') << commandStrings[idx] 
-		    << " - " << descriptions[idx] << '\n';
-	}
-    
-	std::cout << "\nType \"help <command>\" for more information about a specific command.\n\n";
-      }
-  
-      void printHelp(std::string const &cmd) {
-	if (!helpMap.contains(cmd)) {
-	  printError(cmd, ": Unknown command.");
-	  return;
-	}
-    
-	std::string const &help = helpMap.find(cmd)->second;
-	if (help.empty()) {
-	  printMsg(cmd, ": No additional help available.");
-	  return;
-	}
-	std::cout << '\n' << help << "\n\n";
-      }
-      
-    }; // class CommandLine
-
 
     enum SignalType {
       Input,
@@ -321,181 +39,12 @@ namespace Rinku {
       return (f == Decimal) ? "decimal" : ((f == Hexadecimal) ? "hexadecimal" : "binary");
     };
     
-    enum Event {
-      High,
-      Low,
-      Rising,
-      Falling,
-      Change,
-      Equals
-    };
-
-    static std::string eventString(Event e) {
-      static std::string const labels[] = {
-	"high", "low", "rising", "falling", "change"
-      };
-      return labels[e];
-    }
-
-    std::string eventString(signal_t value) {
-      return "equals " + std::to_string(value) + " (base 10)";
-    }
-
-    class BreakpointBase {
-      std::string _label;
-    public:
-      BreakpointBase(std::string const &label):
-	_label(label)
-      {}
-
-      std::string const &label() const {
-	return _label;
-      }
-
-      virtual bool update() = 0;
-      
-    }; // class BreakpointBase
-    
-    class Breakpoint: public BreakpointBase {
-    public:
-
-    private:
-      using Getter = std::function<signal_t()>;
-      
-      Event _trigger;
-      std::vector<signal_t> _currentValues;
-      std::vector<Getter> _getters;
-      signal_t _value = 0;
-
-    public:
-      Breakpoint(signal_t value, std::string const &label):
-	BreakpointBase(label),
-	_trigger(Event::Equals),
-	_value(value)
-      {}
-      
-      Breakpoint(Event trigger, std::string const &label):
-	BreakpointBase(label),
-	_trigger(trigger)
-      {}
-
-      template <typename Callable>
-      void add(Callable&& get) {
-	_getters.push_back(get);
-	_currentValues.push_back(get());
-      }
-      
-      virtual bool update() override {
-	std::vector<signal_t> newValues;
-	for (auto const &get: _getters) {
-	  newValues.push_back(get());
-	}
-	bool isTriggered = false;
-	for (size_t idx = 0; idx != newValues.size(); ++idx) {
-	  if (triggered(_currentValues[idx], newValues[idx])) {
-	    isTriggered = true;
-	    break;
-	  }
-	}
-
-	_currentValues.swap(newValues);
-	return isTriggered;
-      }
-
-    private:
-      bool triggered(signal_t oldValue, signal_t newValue) const {
-	switch (_trigger) {
-	case High: return (newValue != 0);
-	case Low: return (newValue == 0);
-	case Rising: return (oldValue == 0) && (newValue != 0);
-	case Falling: return (oldValue != 0) && (newValue == 0);
-	case Change: return (oldValue != newValue);
-	case Equals: return (newValue == _value);
-	default: UNREACHABLE__;
-	}
-      }
-    }; // class Breakpoint
-
-    class CombinedBreakpoint: public BreakpointBase {
-    public:
-      enum Operation {
-	And,
-	Nand,
-	Or,
-	Nor,
-	Xor,
-	Xnor,
-	N_OPERATIONS
-      };
-
-    private:
-      std::shared_ptr<BreakpointBase> _br1;
-      std::shared_ptr<BreakpointBase> _br2;
-      Operation _op;
-      
-      static constexpr std::string operationStrings[N_OPERATIONS] = {
-	"and", "nand", "or", "nor", "xor"
-      };
-
-      std::string constructLabel(std::string const &br1Label, std::string const &br2Label, Operation op) {
-	auto const applyIndentation = [](std::string const &str) -> std::string {
-	  std::string result = "  ";
-	  for (char c: str) {
-	    if (c != '\n') result += c;
-	    else result += "\n  ";
-	  }
-	  return result;
-	};
-	
-	std::string result = "Combined breakpoint: " + operationStrings[op] + "\n";
-	result += applyIndentation(br1Label) + "\n";
-	result += applyIndentation(br2Label);
-	return result;
-      }
-      
-    public:
-      CombinedBreakpoint(std::shared_ptr<BreakpointBase> br1,
-			 std::shared_ptr<BreakpointBase> br2,
-			 Operation op):
-	BreakpointBase(constructLabel(br1->label(), br2->label(), op)),
-	_br1(br1),
-	_br2(br2),
-	_op(op)
-      {}
-
-      static std::string operationToString(Operation op) {
-	return operationStrings[op];
-      }
-
-      static Operation stringToOperation(std::string const &str) {
-	for (size_t idx = 0; idx != N_OPERATIONS; ++idx) {
-	  if (str == operationStrings[idx]) {
-	    return static_cast<Operation>(idx);
-	  }
-	}
-	return N_OPERATIONS;
-      }
-      
-      virtual bool update() override {
-	bool br1Triggered = _br1->update();
-	bool br2Triggered = _br2->update();
-	switch (_op) {
-	case And:  return br1Triggered && br2Triggered;
-	case Nand: return !(br1Triggered && br2Triggered);
-	case Or:   return br1Triggered || br2Triggered;
-	case Nor:  return !(br1Triggered || br2Triggered);
-	case Xor:  return br1Triggered ^ br2Triggered;
-	case Xnor: return !(br1Triggered ^ br2Triggered);
-	default: UNREACHABLE__;
-	}
-      }
-    }; // class CombinedBreakpoint
-    
     System &_sys;
-    std::vector<std::shared_ptr<BreakpointBase>> _breakpoints;
     size_t _tick = 0;
-    NumberFormat _fmt = NumberFormat::Decimal;
+    NumberFormat _fmt = Decimal;
+    std::vector<std::shared_ptr<BreakpointBase>> _breakpoints;
     std::vector<Impl::ModuleBase*> _enableUpdateQueue;;
+
     static constexpr size_t LINE_WIDTH = 80;
     static constexpr size_t HELP_INDENT = 2;
     
@@ -505,38 +54,9 @@ namespace Rinku {
     {}
     
     void debug() {
-      // Construct prompt and helper function (lambda) that wraps linenoise
-      std::string const prompt = "rdb> ";
-      auto promptAndGetInput = [&prompt]() -> std::pair<std::string, bool> {
-	char *line = linenoise(prompt.c_str());
-	if (line == nullptr) return {"", false};
-            
-	linenoiseHistoryAdd(line);
-	std::string input(line);
-	linenoiseFree(line);
-	return {input, true};
-      };
-
-      // Setup completion callback
-      linenoiseSetCompletionCallback(completionCallback);
-
-      // Create commandline object
-      CommandLine cli = generateCommandLine();
-      
-
-      // Start interactive session -> return true/false to indicate if the images should be writen to disk
       std::cout << "<Rinku Debugger> Type \"help\" for a list of available commands.\n\n";
-      while (true) {
-	auto [input, good] = promptAndGetInput();
-	if (!good) return;
-
-	auto args = split(input, ' ');
-	if (args.empty()) continue;
-
-	bool quit = cli.exec(args);
-	if (quit) return;
-      }
-      UNREACHABLE__;
+      SimpShell cli = generateCommandLine();
+      while (cli.promptAndExecute("rdb>")) {}
     }
 
   private:
@@ -552,48 +72,6 @@ namespace Rinku {
 	printError("Unexpected error: ", err.what());
       }
       return {};
-    }
-
-    enum ListType {
-      Clean,
-      Bullets,
-      Dashes,
-      Numbered
-    };
-    
-    void listVector(ListType listType,
-		    std::string const &header,
-		    std::vector<std::string> const &vec,
-		    std::string const &footer = "") {
-
-      auto const getBullet = [&listType](size_t idx) -> std::string {
-	switch (listType) {
-	case Clean: return "";
-	case Bullets: return "*";
-	case Dashes: return "-";
-	case Numbered: return (std::to_string(idx) + ".");
-	default: UNREACHABLE__;
-	};
-      };
-
-      auto const applyIndentation = [](std::string const &str, size_t n) -> std::string {
-	std::string result;
-	for (char c: str) {
-	  if (c != '\n') result += c;
-	  else result += "\n" + std::string(n, ' ');
-	}
-	return result;
-      };
-      
-      std::cout << '\n' << header << '\n';
-      for (size_t idx = 0; idx != vec.size(); ++idx) {
-	std::string pre = "  " + getBullet(idx) + " ";
-	std::cout << pre << applyIndentation(vec[idx], pre.size()) << '\n';
-      }
-      if (vec.size() == 0)
-	std::cout << "  -\n";
-      
-      std::cout << footer << std::endl;
     }
 
     std::string formatValue(signal_t value) const {
@@ -637,7 +115,7 @@ namespace Rinku {
       _enableUpdateQueue.clear();
     }
     
-    SignalType getSignalType(Impl::ModuleBase const &mod, std::string const &sigName) {
+    static SignalType getSignalType(Impl::ModuleBase const &mod, std::string const &sigName) {
       auto const inputSignalVec = mod.getInputSignalNames();
       auto const outputSignalVec = mod.getOutputSignalNames();
 
@@ -889,11 +367,11 @@ namespace Rinku {
       _enableUpdateQueue.push_back(&mod);
     }
     
-    CommandLine generateCommandLine() {
+    SimpShell generateCommandLine() {
 
-      CommandLine cli;
+      SimpShell cli;
     
-#define COMMAND [&](CommandLine::CommandArgs const &args)
+#define COMMAND [&](std::vector<std::string> const &args)
   
       cli.add({"help", "h"}, COMMAND {
 	  if (args.size() == 1) {
@@ -908,7 +386,7 @@ namespace Rinku {
 	);
 
       cli.add({"quit", "q"}, COMMAND {
-	  return true;
+	  return false;
 	},
 	"Quit the debugger."
 	);
@@ -1253,7 +731,7 @@ namespace Rinku {
   }; // class Debugger
 } // namespace Rinku
 
+
 void Rinku::System::debug() {
   Rinku::Debugger(*this).debug();
 }
-

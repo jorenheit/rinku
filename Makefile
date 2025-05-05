@@ -9,15 +9,20 @@ DEST_SUBDIRS := $(SRC_DIRS)
 
 CXX          ?= g++
 CC           ?= gcc
-CXXFLAGS     ?= -std=c++20 -O3
+CXXFLAGS     ?= -std=c++20 -O3 
 CFLAGS       ?= -O3
 AR           := ar
 ARFLAGS      := rcs
 
-DEBUG_OBJ    := linenoise.o rinku_debug.o
-DEBUG_LIB    := librinku.a
+# Source definitions
 LN_SRC       := rinku/linenoise/linenoise.c
-DBG_SRC      := rinku/rinku_debug.cc
+DBG_SRC      := rinku/rinku_debug.cc \
+                rinku/rinku_debug_utilities.cc \
+                rinku/simpshell.cc
+
+# Derived object lists (strip directories)
+DEBUG_OBJ    := linenoise.o $(patsubst rinku/%.cc,%.o,$(DBG_SRC))
+DEBUG_LIB    := librinku.a
 
 .PHONY: all install uninstall debug install-debug uninstall-debug clean
 
@@ -56,15 +61,17 @@ debug: $(DEBUG_LIB)
 $(DEBUG_LIB): $(DEBUG_OBJ)
 	$(AR) $(ARFLAGS) $@ $^
 
+# Compile rules
 linenoise.o: $(LN_SRC)
-	$(CC)   $(CFLAGS) -fPIC -c $< -o $@
+	$(CC) $(CFLAGS) -fPIC -c $< -o $@
 
-rinku_debug.o: $(DBG_SRC)
+# Compile any .cc under rinku/ into .o in root directory
+%.o: rinku/%.cc
 	$(CXX) $(CXXFLAGS) -fPIC -c $< -o $@
 
-# -----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------
 # Debugger library installation (only on `make install-debug`)
-# -----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------
 install-debug: $(DEBUG_LIB)
 	@echo "Installing debugger static library to $(DESTDIR)$(libdir)"
 	@install -d "$(DESTDIR)$(libdir)"

@@ -17,6 +17,24 @@ struct Output_: IO_<N, Base_, false>
   static constexpr bool ActiveLow = Inverted;
 };
 
+template <typename ... Args>
+class Signals_ {
+public:
+  static constexpr size_t N = sizeof ... (Args);
+  
+  template <typename S, size_t I = 0>
+  static consteval size_t index_of();
+
+  static consteval bool is_input_list();
+  static consteval bool is_output_list();
+      
+  static_assert(is_input_list() || is_output_list(),
+		"Signal list must contain only inputs or outputs.");
+
+  static char const * const *names();
+  static signal_t const *masks();
+  static size_t const *widths();
+};
 
 template <typename ... Args>
 template <typename S, size_t I>
@@ -44,7 +62,7 @@ consteval bool Signals_<Args...>::is_output_list() {
 template <typename ... Args>
 char const * const *Signals_<Args...>::names() {
   static constexpr char const *_names[] = {
-    (Args::Name)...
+    (Args::Base::Name)...
   };
   return _names;
 }

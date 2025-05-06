@@ -66,8 +66,7 @@ ModuleT& System::addModuleImpl(std::string const &name, Args&&... args) {
 		"Module-type must derive from Module<...>.");
 
   auto ptr = std::make_shared<ModuleT>(std::forward<Args>(args)...);
-  if (name != ANONYMOUS) {
-
+  if (!name.empty()) {
     Error::throw_runtime_error_if
       <Error::DuplicateModuleNames>(_moduleIndexByName.contains(name), name);
 
@@ -84,7 +83,7 @@ ModuleT& System::addModuleImpl(std::string const &name, Args&&... args) {
 
 template <typename ModuleT>
 ModuleT& System::addModule() {
-  return addModuleImpl<ModuleT>(ANONYMOUS);
+  return addModuleImpl<ModuleT>("");
 }
     
 template <typename ModuleT, typename First, typename ... Rest>
@@ -100,7 +99,7 @@ ModuleT& System::addModule(First&& first, Rest&& ... rest) {
       // Check if it can be built without.
       if constexpr (!std::is_constructible_v<ModuleT, Rest ...>) {
 	// Can't be built without -> string is part of constructor -> unnamed
-	return addModuleImpl<ModuleT>(ANONYMOUS,
+	return addModuleImpl<ModuleT>("",
 				      std::forward<First>(first),
 				      std::forward<Rest>(rest) ...);
       }
@@ -119,7 +118,7 @@ ModuleT& System::addModule(First&& first, Rest&& ... rest) {
     }
   }
   else {
-    return addModuleImpl<ModuleT>(ANONYMOUS,
+    return addModuleImpl<ModuleT>("",
 				  std::forward<First>(first),
 				  std::forward<Rest>(rest)...);
   }
@@ -132,7 +131,7 @@ ModuleT& System::addModuleNamed(std::string const &name, Args&&... args) {
 
 template <typename ModuleT, typename... Args>
 ModuleT& System::addModuleUnnamed(Args&&... args) {
-  return addModuleImpl<ModuleT>(ANONYMOUS, std::forward<Args>(args)...);
+  return addModuleImpl<ModuleT>("", std::forward<Args>(args)...);
 }
     
 template <typename ModuleT>
@@ -350,4 +349,47 @@ inline signal_t const *System::getClockSignalPointer() const {
     
 inline void System::checkIfInitialized() {
   if (!_initialized) Error::throw_runtime_error<Error::SystemNotInitialized>();
+}
+
+inline std::string System::dot() const {
+  std::ostringstream oss;
+
+  oss <<
+    "digraph RinkuSystem {\n"
+    "  rankdir = LR;\n"
+    "  node [shape=record];\n";
+
+  std::set<signal_t> hardwired;
+  for (auto const &ptr: _modules) {
+    hardwired.insert(ptr->getHardwiredValues().begin(), ptr->getHardwiredValues().end());
+    std::vector<std::string> const inputSignals = ptr->getInputSignalNames();
+    std::vector<std::string> const outputSignals = ptr->getOutputSignalNames();
+
+    oss << ptr->name() << " [label=\"{{";
+    for (size_t idx = 0; idx != ptr->usedInputs(); ++idx) {
+      oss << "<" << inputSignals[idx] << "> " << inputSignals[idx] << std::flush;
+      if (idx != ptr->usedInputs() - 1) oss << " | ";
+    }
+    oss << "} | " << ptr->name() << " | {";
+    for (size_t idx = 0; idx != ptr->usedOutputs(); ++idx) {
+      oss << "<" << outputSignals[idx] << "> " << outputSignals[idx] << std::flush;
+      if (idx != ptr->usedOutputs() - 1) oss << " | ";
+    }
+    oss << "}}\"];\n";
+  }
+
+  for (signal_t val: hardwired) {
+    oss << val << " [shape=circle];\n";
+  }
+  
+  oss << "\n\n";
+
+  for (auto const &ptr: _modules) {
+    for (auto const &str: ptr->getDotConnections())
+      oss << str << '\n';
+  }
+  
+  oss << "}";
+
+  return oss.str();
 }

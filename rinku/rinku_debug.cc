@@ -1,5 +1,7 @@
+#include <filesystem>
 #include <optional>
 #include <sstream>
+#include <fstream>
 #include <memory>
 #include <vector>
 #include <iomanip>
@@ -366,6 +368,21 @@ namespace Rinku {
       // rest of the system
       _enableUpdateQueue.push_back(&mod);
     }
+
+    void exportDot(std::string const &filename) {
+      if (std::filesystem::path(filename).extension() != ".dot") {
+	printWarning("DOT-files typically end in the '.dot' file-extension.");
+      }
+      
+      std::ofstream file(filename);
+      if (!file) {
+	printError("Could not open file for writing: ", filename);
+	return;
+      }
+
+      file << _sys.dot();
+      printMsg("Exported system-graph to '", filename, "'.");
+    }
     
     SimpShell generateCommandLine() {
 
@@ -705,6 +722,24 @@ namespace Rinku {
 		   "updated in order to propagate the signal. The module itself will not be updated "
 		   "until after the following clock state-change, when the alternative output has "
 		   "had its effect.",
+		   LINE_WIDTH, HELP_INDENT)
+	);
+      cli.add({"dot", "."}, COMMAND {
+	  if (args.size() != 2) {
+	    printError(args[0], ": expects a single argument (filename).");
+	    cli.printHelp();
+	    return;
+	  }
+
+	  exportDot(args[1]);
+	},
+	"Export the system to a DOT-file.",
+	wrapString(
+		   "Syntax: dot [filename]\n"
+		   "\n"
+		   "The system can be exported to a DOT-file, which is a file containing a description "
+		   "of the graph defined by the modules and the connections between them. This file can "
+		   "then be opened in a DOT-viewer to inspect the system visually.",
 		   LINE_WIDTH, HELP_INDENT)
 	);
       

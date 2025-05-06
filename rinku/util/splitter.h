@@ -54,7 +54,7 @@ namespace Rinku {
     template <size_t N>
     class Splitter: RINKU_MODULE(SplitterInputs, SplitterOutputs) {
       static_assert(N <= Outputs::N, "Number of splitter inputs (N) is larger than 64.");
-      
+
       signal_t currentOutput = 0;
       bool initialized = false;
       
@@ -74,6 +74,10 @@ namespace Rinku {
 
       virtual void reset() override {
 	initialized = false;
+      }
+
+      virtual size_t usedOutputs() const override {
+	return N;
       }
     };
 

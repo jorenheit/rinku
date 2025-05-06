@@ -75,6 +75,7 @@ void Module<T1, T2>::connect(OtherModule &other) {
     
   other.addOutgoing(outputIndex, getModuleIndex());
   inputState[inputIndex].push_back({ptr, OutputSignal::ActiveLow});
+  addDotConnection<InputSignal, OutputSignal>(other);
 }
 
 template <typename T1, typename T2>
@@ -93,6 +94,8 @@ void Module<T1, T2>::connect() {
 
   if (connected(inputIndex, ptr)) return;
   inputState[inputIndex].push_back({ptr, false});
+  addDotConnection<InputSignal, Value>();
+  ModuleBase::addHardwiredValue(Value);
 }
 
 template <typename T1, typename T2>
@@ -176,4 +179,23 @@ signal_t Module<T1, T2>::getOutput(size_t outputIndex) const {
     <Error::IndexOutOfBounds>(outputIndex >= Outputs::N, "output", ModuleBase::name(), outputIndex, Outputs::N);
       
   return outputState[outputIndex] & Outputs::masks()[outputIndex];
+}
+
+template <typename T1, typename T2>
+template <typename InputSignal, typename OutputSignal, typename OtherModule>
+void Module<T1, T2>::addDotConnection(OtherModule const &otherMod) {
+  std::ostringstream oss;
+
+  oss << otherMod.name()    << ":" << OutputSignal::Name << " -> "
+      << ModuleBase::name() << ":" << InputSignal::Name;
+
+  ModuleBase::addDotConnection(oss.str());
+}
+
+template <typename T1, typename T2>
+template <typename InputSignal, signal_t Value>
+void Module<T1, T2>::addDotConnection() {
+  std::ostringstream oss;
+  oss << Value << " -> " << name() << ":" << InputSignal::Name;
+  ModuleBase::addDotConnection(oss.str());
 }

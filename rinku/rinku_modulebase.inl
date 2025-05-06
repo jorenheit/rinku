@@ -1,3 +1,6 @@
+inline ModuleBase::ModuleBase() {
+  _name = "__rinku_module_" + std::to_string(_count++);
+}
 
 inline void ModuleBase::update() {
   this->update(GuaranteeToken{&_guaranteed});
@@ -50,4 +53,28 @@ inline bool ModuleBase::guaranteed() const {
 
 inline bool ModuleBase::updateEnabled() const {
   return _updateEnabled;
+}
+
+inline void ModuleBase::addDotConnection(std::string const &str) {
+  _dotConnections.push_back(str);
+}
+
+inline void ModuleBase::addHardwiredValue(signal_t value) {
+  _hardwiredValues.insert(value);
+}
+
+inline std::vector<std::string> const &ModuleBase::getDotConnections() const {
+  return _dotConnections;
+}
+
+inline std::set<signal_t> const &ModuleBase::getHardwiredValues() const {
+  return _hardwiredValues;
+}
+
+inline size_t ModuleBase::usedInputs() const {
+  return nInputs();
+}
+
+inline size_t ModuleBase::usedOutputs() const {
+  return nOutputs();
 }

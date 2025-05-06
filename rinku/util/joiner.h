@@ -63,6 +63,10 @@ namespace Rinku {
     
 	setOutput<JOINER_OUT>(result);
       }
+
+      virtual size_t usedInputs() const override {
+	return N;
+      }
     };
     
   } // namespace Util

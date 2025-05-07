@@ -140,7 +140,7 @@ namespace Rinku {
   
   template <typename Output>
   struct Not: Impl::Output_<Output::Width, typename Output::Base, !Output::ActiveLow> {
-    static_assert(Output::IsOutput, "Cannot negate input signals.");
+    static_assert(Output::IsOutput, "'Not' can only be applied to output-signals.");
     static constexpr char const *Name = Output::Name;
   };
 

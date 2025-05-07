@@ -189,6 +189,10 @@ void Module<T1, T2>::addDotConnection(OtherModule const &otherMod) {
   oss << otherMod.name()    << ":" << OutputSignal::Name << " -> "
       << ModuleBase::name() << ":" << InputSignal::Name;
 
+  if (OutputSignal::ActiveLow) {
+    oss << " [style=dashed]";
+  }
+  
   ModuleBase::addDotConnection(oss.str());
 }
 

@@ -171,11 +171,11 @@ namespace Rinku {
     virtual size_t nOutputs() const override final { return Outputs::N; }
     
     virtual std::vector<std::string> getInputSignalNames() const override final {
-      return std::vector<std::string>(Inputs::names(), Inputs::names() + Inputs::N);
+      return std::vector<std::string>(Inputs::names(), Inputs::names() + this->usedInputs());
     }
 
     virtual std::vector<std::string> getOutputSignalNames() const override final {
-      return std::vector<std::string>(Outputs::names(), Outputs::names() + Outputs::N);
+      return std::vector<std::string>(Outputs::names(), Outputs::names() + this->usedOutputs());
     }
 
     template <typename S, typename SignalList = std::conditional_t<S::IsInput, Inputs, Outputs>>
@@ -360,7 +360,7 @@ namespace Rinku {
     template <typename ... Scopes>
     std::string vcd(Scopes const & ... args);
 
-    std::vector<std::string> namedModules() const;
+    std::vector<std::string> moduleNames() const;
 
     std::string dot() const;
     

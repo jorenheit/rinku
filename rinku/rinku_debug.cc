@@ -140,7 +140,9 @@ namespace Rinku {
     }
     
     void listModules() {
-      listVector(Bullets, "Available modules:", _sys.namedModules());
+      std::vector<std::string> modList = _sys.moduleNames();
+      std::sort(modList.begin(), modList.end());
+      listVector(Bullets, "Available modules:", modList);
     }
 
     bool listSignals(std::string const &modName, SignalType sigType) {
@@ -148,8 +150,8 @@ namespace Rinku {
       if (!optModule.has_value()) return false;
       
       Impl::ModuleBase const *mod = optModule.value();
-      listVector(Bullets, signalTypeString(sigType) + " signals for module \"" + modName + "\": ",
-		 (sigType == SignalType::Input) ? mod->getInputSignalNames() : mod->getOutputSignalNames());
+      std::vector<std::string> sigList = (sigType == SignalType::Input) ? mod->getInputSignalNames() : mod->getOutputSignalNames();
+      listVector(Bullets, signalTypeString(sigType) + " signals for module \"" + modName + "\": ", sigList);
 
       return true;
     }
@@ -419,7 +421,7 @@ namespace Rinku {
 	    if (args[2] == "in") listSignals(args[1], SignalType::Input);
 	    else if (args[2] == "out") listSignals(args[1], SignalType::Output);
 	    else {
-	      printError(args[0], ": expected 'in' or 'out'.");
+	      printError(args[0], ": expects 'in' or 'out'.");
 	      cli.printHelp(args[0]);
 	    }
 	  }
@@ -451,7 +453,7 @@ namespace Rinku {
 	    
 	    size_t index1, index2;
 	    if (!stringToInt(args[2], index1) || !stringToInt(args[3], index2)) {
-	      printError(args[0], ": expected pair of integer indices after 'combine'.");
+	      printError(args[0], ": expects pair of integer indices after 'combine'.");
 	      cli.printHelp(args[0]);
 	      return;
 	    }
@@ -472,7 +474,7 @@ namespace Rinku {
 	    if (args[2] == "in") setBreakpointAny(args[1], SignalType::Input, Event::Change);
 	    else if (args[2] == "out") setBreakpointAny(args[1], SignalType::Output, Event::Change);
 	    else {
-	      printError(args[0], ": expected 'in' or 'out'.");
+	      printError(args[0], ": insufficient arguments.");
 	      cli.printHelp(args[0]);
 	    }
 	  }
@@ -483,23 +485,13 @@ namespace Rinku {
 	    else if (args[3] == "rising") setBreakpoint(args[1], args[2], Event::Rising);
 	    else if (args[3] == "falling") setBreakpoint(args[1], args[2], Event::Falling);
 	    else {
-	      printError(args[0], ": unexpected argument '", args[3], "'.");
-	      cli.printHelp(args[0]);
-	    }
-	  }
-	  else if (args.size() == 5) {
-	    if (args[3] == "value") {
 	      signal_t value;
-	      if (!stringToInt(args[4], value, _fmt)) {
-		printError(args[0], ": value must be an integer in base ", _fmt, ".");
+	      if (!stringToInt(args[3], value, _fmt)) {
+		printError(args[0], ": expects 'high', 'low', 'rising', 'falling', 'change' or a valid integer value.");
 		cli.printHelp(args[0]);
 		return;
 	      }
 	      setBreakpoint(args[1], args[2], value);
-	    }
-	    else {
-	      printError(args[0], ": invalid arguments.");
-	      cli.printHelp(args[0]);
 	    }
 	  }
 	  else {
@@ -512,7 +504,7 @@ namespace Rinku {
                    "        break [module]\n"
                    "        break [module] 'in'/'out'\n"
                    "        break [module] [signal] 'high'/'low'/'rising'/'falling'/'change'\n"
-                   "        break [module] [signal] 'value' [value]\n"
+                   "        break [module] [signal] [value]\n"
 		   "        break 'combine' [index1] [index2] [logic operation]\n"
                    "\n\n"
                    "Without any arguments, 'break' will list the currently active breakpoints."
@@ -523,8 +515,8 @@ namespace Rinku {
                    "Breakpoints can also be set to specific signal events by passing the signal "
                    "name followed by one of 'high', 'low', 'rising', 'falling' and 'change'."
                    "\n\n"
-                   "A breakpoint can be set to a signal having a specific value, by passing "
-                   "'value' followed by a numerical value. This value is interpreted in the base "
+                   "A breakpoint can be set to a signal obtaining a specific value by passing a valid numerical "
+		   "value after the targeted module and signal. This value is interpreted in the base "
                    "currently set by 'format' (see 'help format')."
 		   "\n\n"
 		   "Finally, one can combine two breakpoints into a new breakpoint by one of the "
@@ -678,7 +670,7 @@ namespace Rinku {
 	    if (args[2] == "in") peek(args[1], SignalType::Input);
 	    else if (args[2] == "out") peek(args[1], SignalType::Output);
 	    else {
-	      printError(args[0], ": expected 'in' or 'out'.");
+	      printError(args[0], ": expects 'in' or 'out'.");
 	      cli.printHelp(args[0]);
 	    }
 	  }
@@ -699,7 +691,7 @@ namespace Rinku {
 
       cli.add({"poke", "P"}, COMMAND {
 	  if (args.size() != 4) {
-	    printError(args[0], ": expected exactly 3 arguments.");
+	    printError(args[0], ": expects exactly 3 arguments.");
 	    cli.printHelp(args[0]);
 	    return;
 	  }
@@ -746,7 +738,7 @@ namespace Rinku {
 #undef COMMAND
 
       // Add completion targets
-      for (std::string const &modName: _sys.namedModules()) {
+      for (std::string const &modName: _sys.moduleNames()) {
 	cli.registerCompletionCandidates(modName);
 	auto optModule = tryGetModulePointer(modName);
 	assert(optModule.has_value());
@@ -756,7 +748,8 @@ namespace Rinku {
       }
       std::vector<std::string> const keywords = {
 	"in", "out", "bin", "dec", "hex",
-	"rising", "falling", "high", "low", "value"
+	"rising", "falling", "high", "low", "change",
+	"combine"
       };
 
       cli.registerCompletionCandidates(keywords);

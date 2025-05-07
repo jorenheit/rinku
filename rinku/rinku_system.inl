@@ -66,14 +66,14 @@ ModuleT& System::addModuleImpl(std::string const &name, Args&&... args) {
 		"Module-type must derive from Module<...>.");
 
   auto ptr = std::make_shared<ModuleT>(std::forward<Args>(args)...);
+  Error::throw_runtime_error_if
+    <Error::DuplicateModuleNames>(_moduleIndexByName.contains(name), name);
+  
   if (!name.empty()) {
-    Error::throw_runtime_error_if
-      <Error::DuplicateModuleNames>(_moduleIndexByName.contains(name), name);
-
-    _moduleIndexByName[name] = _moduleCount;
     ptr->setName(name);
   }
-      
+  
+  _moduleIndexByName[ptr->name()] = _moduleCount;
   ptr->setModuleIndex(_moduleCount);
   _clk.attach(ptr);
   _modules.emplace_back(ptr);
@@ -148,7 +148,7 @@ ModuleT &System::getModule(std::string const &name) {
   return *ptr;
 }
 
-inline std::vector<std::string> System::namedModules() const {
+inline std::vector<std::string> System::moduleNames() const {
   std::vector<std::string> result;
   for (auto const &[name, index]: _moduleIndexByName) {
     result.push_back(name);

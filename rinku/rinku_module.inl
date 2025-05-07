@@ -186,7 +186,7 @@ template <typename InputSignal, typename OutputSignal, typename OtherModule>
 void Module<T1, T2>::addDotConnection(OtherModule const &otherMod) {
   std::ostringstream oss;
 
-  oss << otherMod.name()    << ":" << OutputSignal::Name << " -> "
+  oss << otherMod.ModuleBase::name()    << ":" << OutputSignal::Name << " -> "
       << ModuleBase::name() << ":" << InputSignal::Name;
 
   if (OutputSignal::ActiveLow) {
